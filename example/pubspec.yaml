@@ -1,0 +1,16 @@
+name: kerabie_helpdesk_flutter_example
+description: Example app for kerabie_helpdesk_flutter.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  kerabie_helpdesk_flutter:
+    path: ../
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
