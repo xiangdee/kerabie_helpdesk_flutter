@@ -38,6 +38,49 @@ class KerabieStorage {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
   }
+
+  /// A remembered value, or null when there is none or it is older than seven days.
+  Future<T?> read<T>(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('kerabie:sdk:$key');
+    if (raw == null) return null;
+    try {
+      final entry = jsonDecode(raw) as Map<String, dynamic>;
+      final saved = DateTime.fromMillisecondsSinceEpoch((entry['ts'] as num).toInt());
+      if (_now().difference(saved) > _ttl) {
+        await prefs.remove('kerabie:sdk:$key');
+        return null;
+      }
+      final value = entry['value'];
+      return value is T ? value : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Remembers a JSON value for seven days.
+  Future<void> write(String key, Object? value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('kerabie:sdk:$key', jsonEncode({'value': value, 'ts': _now().millisecondsSinceEpoch}));
+  }
+
+  /// Like [read], but without an expiry. For things that must not reset, such as "this campaign was already shown".
+  Future<T?> readForever<T>(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('kerabie:sdk:$key');
+    if (raw == null) return null;
+    try {
+      final value = jsonDecode(raw);
+      return value is T ? value : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> writeForever(String key, Object? value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('kerabie:sdk:$key', jsonEncode(value));
+  }
 }
 
 /// `ks_` followed by random characters and the time, like the other Kerabie SDKs.

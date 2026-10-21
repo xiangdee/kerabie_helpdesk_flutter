@@ -5,13 +5,28 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kerabie_helpdesk_flutter/kerabie_helpdesk_flutter.dart';
 import 'package:kerabie_helpdesk_flutter/src/api_client.dart';
+import 'package:kerabie_helpdesk_flutter/src/attachments.dart';
 import 'package:kerabie_helpdesk_flutter/src/realtime.dart';
 import 'package:kerabie_helpdesk_flutter/src/storage.dart';
+
+/// A picker that hands out the files a test gives it, without opening anything.
+class FakeFilePicker implements KerabieFilePicker {
+  KerabiePickedFile? image;
+  KerabiePickedFile? document;
+
+  @override
+  Future<KerabiePickedFile?> pickImage() async => image;
+
+  @override
+  Future<KerabiePickedFile?> pickDocument() async => document;
+}
 
 /// A stand-in for the socket: records what the SDK sends and lets a test push server events.
 class FakeRealtime implements KerabieRealtime {
   final _events = StreamController<KerabieEvent>.broadcast(sync: true);
-  final sent = <({int? conversationId, String body})>[];
+  final sent = <({int? conversationId, String body, String? type, String? key, String? fileName})>[];
+  final pages = <({String path, String? previous})>[];
+  final pageExits = <String>[];
   final typing = <({int conversationId, bool typing})>[];
   Map<String, Object?>? connectArgs;
   bool connected = false;
@@ -32,11 +47,19 @@ class FakeRealtime implements KerabieRealtime {
     required String appBuild,
     KerabieUser? user,
   }) {
+    connected = true;
     connectArgs = {'baseUrl': baseUrl, 'orgId': orgId, 'sessionId': sessionId, 'appName': appName, 'appVersion': appVersion, 'user': user?.name};
   }
 
   @override
-  void sendMessage({int? conversationId, required String body}) => sent.add((conversationId: conversationId, body: body));
+  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName}) =>
+      sent.add((conversationId: conversationId, body: body, type: attachmentType, key: attachmentKey, fileName: attachmentName));
+
+  @override
+  void sendPage({required String path, String? title, String? previousPath, int? timeSpentMs}) => pages.add((path: path, previous: previousPath));
+
+  @override
+  void sendPageExit({required String path, required int timeSpentMs}) => pageExits.add(path);
 
   @override
   void sendTyping(int conversationId, bool typing) => this.typing.add((conversationId: conversationId, typing: typing));
@@ -61,6 +84,8 @@ class FakeServer {
         requests.add(req);
         final body = routes['${req.method} ${req.url.path}'];
         if (body == null) return http.Response(jsonEncode({'message': 'not found'}), 404);
+        if (body is http.Response Function(http.Request)) return body(req);
+        if (body is Future<http.Response> Function(http.Request)) return body(req);
         return http.Response(jsonEncode(body), 200);
       });
 
@@ -98,11 +123,16 @@ KerabieController makeController({
   required FakeServer server,
   KerabieConfig config = sampleConfig,
   Duration sendTimeout = const Duration(milliseconds: 40),
+  KerabieFilePicker? filePicker,
+  KerabieUploader? uploader,
+  String Function()? generateSession,
 }) {
   return KerabieController(
     config: config,
     realtime: realtime,
-    storage: KerabieStorage(generate: () => 'ks_fixed'),
+    filePicker: filePicker,
+    uploader: uploader,
+    storage: KerabieStorage(generate: generateSession ?? () => 'ks_fixed'),
     sendTimeout: sendTimeout,
     apiFactory: (sid) => KerabieApi(baseUrl: config.baseUrl, widgetKey: config.widgetKey, sessionId: sid, client: server.client),
   );

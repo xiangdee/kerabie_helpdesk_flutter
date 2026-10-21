@@ -5,7 +5,7 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'models.dart';
 
 /// Something the server pushed. Names are the SDK's own: `connect`, `disconnect`, `ready`, `message`,
-/// `typing`, `read`, `agents`, `status`, `start`, `chunk`, and `call_ringing`, `call_queued`, `call_accepted`
+/// `typing`, `read`, `agents`, `status`, `linkpreview`, `start`, `chunk`, and `call_ringing`, `call_queued`, `call_accepted`
 /// and `call_ended`.
 class KerabieEvent {
   const KerabieEvent(this.name, [this.data = const {}]);
@@ -30,8 +30,13 @@ abstract class KerabieRealtime {
   });
 
   /// A null [conversationId] starts a new conversation; the server creates it and echoes the message back.
-  void sendMessage({int? conversationId, required String body});
+  /// An attachment goes as its [attachmentType] (`image` or `file`) and the key the upload returned.
+  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName});
   void sendTyping(int conversationId, bool typing);
+
+  /// The visitor moved to another screen. [path] looks like a URL path, for example `/checkout`.
+  void sendPage({required String path, String? title, String? previousPath, int? timeSpentMs});
+  void sendPageExit({required String path, required int timeSpentMs});
   void disconnect();
   void dispose();
 }
@@ -103,6 +108,7 @@ class SocketIoRealtime implements KerabieRealtime {
     forward('chat:read', 'read');
     forward('agents:online', 'agents');
     forward('chat:status_change', 'status');
+    forward('chat:message:linkpreview', 'linkpreview');
     forward('chat:message:start', 'start');
     forward('chat:message:chunk', 'chunk');
     forward('call:ringing', 'call_ringing');
@@ -114,8 +120,28 @@ class SocketIoRealtime implements KerabieRealtime {
   }
 
   @override
-  void sendMessage({int? conversationId, required String body}) {
-    _socket?.emit('visitor:message', {'conversationId': conversationId, 'body': body});
+  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName}) {
+    _socket?.emit('visitor:message', {
+      'conversationId': conversationId,
+      'body': body,
+      if (attachmentType != null) 'type': attachmentType,
+      if (attachmentType != null) 'metadata': {'key': attachmentKey, 'fileName': attachmentName},
+    });
+  }
+
+  @override
+  void sendPage({required String path, String? title, String? previousPath, int? timeSpentMs}) {
+    _socket?.emit('visitor:page', {
+      'url': path,
+      if (title != null) 'title': title,
+      if (previousPath != null) 'previousUrl': previousPath,
+      if (timeSpentMs != null) 'timeSpentMs': timeSpentMs,
+    });
+  }
+
+  @override
+  void sendPageExit({required String path, required int timeSpentMs}) {
+    _socket?.emit('visitor:page_exit', {'url': path, 'timeSpentMs': timeSpentMs});
   }
 
   @override

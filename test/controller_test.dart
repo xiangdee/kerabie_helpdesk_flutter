@@ -49,7 +49,7 @@ void main() {
       expect(c.messages.first.sender, KerabieSender.visitor);
       expect(c.messages.last.sender, KerabieSender.agent);
       expect(c.conversationId, 7);
-      expect(c.settings.name, 'Acme Support');
+      expect(c.settings.chat.name, 'Acme Support');
       expect(c.settings.cornerRadius, 24);
       expect(realtime.connectArgs, containsPair('orgId', 42));
       expect(realtime.connectArgs, containsPair('sessionId', 'ks_fixed'));
@@ -116,7 +116,8 @@ void main() {
 
       await c.sendMessage('Where is my order?');
       expect(c.messages.last.status, KerabieMessageStatus.pending);
-      expect(realtime.sent.single, (conversationId: 7, body: 'Where is my order?'));
+      expect(realtime.sent.single.conversationId, 7);
+      expect(realtime.sent.single.body, 'Where is my order?');
 
       realtime.emit('message', serverMessage(3, 'Where is my order?', role: 'customer'));
 
@@ -255,6 +256,7 @@ void main() {
       final c = makeController(realtime: realtime, server: server);
       await c.start();
       realtime.emit('connect');
+      realtime.emit('ready', {'conversationId': 7, 'agentsOnline': true});
       expect(c.messages, hasLength(2));
 
       server.routes['GET /public/widget/messages'] = {
@@ -267,6 +269,7 @@ void main() {
       };
       realtime.emit('disconnect');
       realtime.emit('connect');
+      realtime.emit('ready', {'conversationId': 7, 'agentsOnline': true});
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
       expect(c.messages.map((m) => m.body), contains('Sorry for the wait'));
@@ -311,7 +314,7 @@ void main() {
       final c = makeController(realtime: realtime, server: server);
       await c.start();
       var shown = 0;
-      c.presenter = () => shown++;
+      c.presenter = (_) => shown++;
 
       expect(c.handleNotificationData({'conversationId': '7', 'orgId': '42'}), isTrue);
       expect(c.handleNotificationData({'conversationId': 7}), isTrue);
@@ -323,7 +326,7 @@ void main() {
       final c = makeController(realtime: realtime, server: server);
       await c.start();
       var shown = 0;
-      c.presenter = () => shown++;
+      c.presenter = (_) => shown++;
 
       expect(c.handleNotificationData({'type': 'promo'}), isFalse);
       expect(shown, 0);
@@ -336,7 +339,7 @@ void main() {
       final c = makeController(realtime: realtime, server: server);
       await c.start();
       var shown = 0;
-      c.presenter = () => shown++;
+      c.presenter = (_) => shown++;
 
       expect(c.handleDeepLink(Uri.parse('myapp://conversation/123')), isTrue);
       expect(c.handleDeepLink(Uri.parse('other://conversation/9')), isTrue);

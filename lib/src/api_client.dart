@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 /// The server answered with an error, or could not be reached.
 class KerabieException implements Exception {
@@ -38,6 +39,15 @@ class KerabieApi {
     return _send(
       () => _client.post(uri, headers: {..._headers, 'Content-Type': 'application/json'}, body: jsonEncode(body)),
     );
+  }
+
+  /// Uploads one file as multipart form data under the field [field].
+  Future<Map<String, dynamic>> postFile(String path, {required String field, required String filePath, required String fileName, required String mimeType}) async {
+    final uri = Uri.parse('$baseUrl$path');
+    final request = http.MultipartRequest('POST', uri)
+      ..headers.addAll(_headers)
+      ..files.add(await http.MultipartFile.fromPath(field, filePath, filename: fileName, contentType: MediaType.parse(mimeType)));
+    return _send(() async => http.Response.fromStream(await _client.send(request)));
   }
 
   Future<Map<String, dynamic>> delete(String path) async {

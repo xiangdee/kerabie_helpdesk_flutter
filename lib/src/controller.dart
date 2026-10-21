@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
+import 'attachments.dart';
 import 'config.dart';
 import 'deep_link.dart';
 import 'models.dart';
@@ -13,6 +14,21 @@ import 'storage.dart';
 /// Use one provider for the whole app: Kerabie keeps a single token per visitor session.
 enum KerabiePushProvider { fcm, expo }
 
+/// The first message of a new conversation, still waiting for the server to say which conversation it made.
+class _DraftConversation {
+  _DraftConversation(this.tempId);
+
+  final String tempId;
+  final Completer<int?> id = Completer<int?>();
+}
+
+/// A screen path the server accepts: it starts with a slash.
+String kerabieScreenPath(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return '/';
+  return trimmed.startsWith('/') ? trimmed : '/$trimmed';
+}
+
 /// The state of the chat and the actions on it. Rebuilds listeners when anything changes.
 class KerabieController extends ChangeNotifier {
   KerabieController({
@@ -20,13 +36,25 @@ class KerabieController extends ChangeNotifier {
     KerabieStorage? storage,
     KerabieRealtime? realtime,
     KerabieApi Function(String sessionId)? apiFactory,
-    this.sendTimeout = const Duration(seconds: 10),
+    KerabieFilePicker? filePicker,
+    KerabieUploader? uploader,
+    this.sendTimeout = const Duration(seconds: 8),
   })  : _storage = storage ?? KerabieStorage(),
         _realtime = realtime ?? SocketIoRealtime(),
+        filePicker = filePicker ?? DeviceFilePicker(),
+        staging = KerabieAttachmentStaging(uploader: uploader),
+        _user = config.user,
+        _appVersion = config.appVersion,
         _apiFactory = apiFactory ??
             ((sessionId) => KerabieApi(baseUrl: config.baseUrl, widgetKey: config.widgetKey, sessionId: sessionId));
 
   final KerabieConfig config;
+
+  /// Opens the photo library and the document picker for attachments.
+  final KerabieFilePicker filePicker;
+
+  /// The file the visitor picked and is about to send. Shared by the chat screen and the search bar.
+  final KerabieAttachmentStaging staging;
 
   /// How long a sent message may stay unconfirmed before it is marked failed.
   final Duration sendTimeout;
@@ -36,32 +64,61 @@ class KerabieController extends ChangeNotifier {
   final KerabieApi Function(String sessionId) _apiFactory;
 
   KerabieApi? _api;
+  final _apiReady = Completer<KerabieApi>();
   StreamSubscription<KerabieEvent>? _events;
   String? _sessionId;
+  int _orgId = 0;
   bool _started = false;
   bool _disposed = false;
-  bool _hasConnectedBefore = false;
+  bool _hasReadyBefore = false;
 
   final List<KerabieMessage> _messages = [];
   final Map<String, String> _pendingBodies = {};
   final Map<String, Timer> _failTimers = {};
+  _DraftConversation? _draftConversation;
   Timer? _typingTimer;
   int _localCounter = 0;
   int? _conversationId;
 
   KerabieSettings _settings = const KerabieSettings();
+  KerabieUser? _user;
+  String _appVersion;
+  List<KerabieConversation> _conversations = const [];
+  String? _chatDraft;
   bool _isConnected = false;
   bool _isOpen = false;
   bool _isTyping = false;
   bool _isAiTyping = false;
   int _unreadCount = 0;
   int? _agentsOnline;
+  String? _screen;
+  DateTime? _screenSince;
 
-  /// Set by [KerabieProvider] when it was given a navigator key, so a link or a notification tap can show the chat.
-  VoidCallback? presenter;
+  /// Set by [KerabieProvider]: shows the chat over the app. A link or a notification tap uses it.
+  void Function(KerabieRoute route)? presenter;
+
+  /// Set by whoever shows the chat, so [toggle] and [dismissChat] can take it away again.
+  VoidCallback? dismisser;
+
+  /// Called when the app should open the chat in its own navigator ([KerabieOpenMode.push]).
+  void Function(KerabieRoute route)? onNavigate;
+  VoidCallback? onOpenChat;
+  VoidCallback? onCloseChat;
+
+  /// A campaign button can open your knowledge base. Chat has no fixed screen for it, so the app decides where it goes.
+  VoidCallback? onOpenKnowledgeBase;
+
+  /// Runs when the visitor sends a message. Campaigns use it to count a reply.
+  VoidCallback? onVisitorMessage;
 
   List<KerabieMessage> get messages => List.unmodifiable(_messages);
+
+  /// What the dashboard has saved for this widget.
   KerabieSettings get settings => _settings;
+
+  /// The chat settings in force: the dashboard's, with anything you set in [KerabieConfig.chatSettings] on top.
+  KerabieChatSettings get chat => _settings.chat.merge(config.chatSettings);
+
   bool get isConnected => _isConnected;
   bool get isOpen => _isOpen;
   bool get isTyping => _isTyping;
@@ -73,6 +130,37 @@ class KerabieController extends ChangeNotifier {
   int? get conversationId => _conversationId;
   String? get sessionId => _sessionId;
 
+  /// What the SDK remembers on the device.
+  KerabieStorage get storage => _storage;
+
+  /// The REST client, once the chat has started. The ticket, knowledge base and store screens use it.
+  KerabieApi? get api => _api;
+
+  /// The REST client, waiting for the chat to start if it has not yet.
+  Future<KerabieApi> waitForApi() async => _api ?? await _apiReady.future;
+
+  /// Who the customer is, as far as the app has said.
+  KerabieUser? get currentUser => _user;
+
+  /// The identified user's name, used to fill `{{name}}` in the welcome message. Empty when unknown.
+  String get visitorName => _user?.name ?? '';
+
+  String get appName => config.appName;
+  String get appVersion => _appVersion;
+  String get appBuild => config.appBuild;
+
+  /// The visitor's conversations, after [refreshConversations].
+  List<KerabieConversation> get conversations => _conversations;
+
+  /// Text typed into the search bar, waiting for the chat screen to send it.
+  String? get chatDraft => _chatDraft;
+
+  /// The screen the app reported with [trackScreen], as a path such as `/checkout`.
+  String? get screen => _screen;
+
+  /// The visitor has written, or been written to: campaigns for people who have not chatted yet stay quiet.
+  bool get hasChatted => _messages.isNotEmpty || _conversationId != null || _conversations.isNotEmpty;
+
   /// Loads the history and the dashboard settings, then connects. Safe to call more than once.
   Future<void> start() async {
     if (_started || _disposed) return;
@@ -81,31 +169,40 @@ class KerabieController extends ChangeNotifier {
     if (_disposed) return;
     _sessionId = sessionId;
     _api = _apiFactory(sessionId);
+    _apiReady.complete(_api);
     _events = _realtime.events.listen(_onEvent);
 
     await _loadHistory(replace: true);
-    final orgId = await _loadSettings();
+    _orgId = await _loadSettings();
     if (_disposed) return;
 
-    final user = config.user;
+    final user = _user;
     if (user != null) unawaited(identify(user));
+    _connect();
+  }
 
+  void _connect() {
     _realtime.connect(
       baseUrl: config.baseUrl,
-      orgId: orgId,
-      sessionId: sessionId,
+      orgId: _orgId,
+      sessionId: _sessionId!,
       appName: config.appName,
-      appVersion: config.appVersion,
+      appVersion: _appVersion,
       appBuild: config.appBuild,
-      user: user,
+      user: _user,
     );
   }
 
-  Future<void> _loadHistory({required bool replace}) async {
+  Future<void> _loadHistory({required bool replace, int? conversationId}) async {
     try {
-      final res = await _api!.get('/public/widget/messages');
+      final res = await _api!.get(
+        '/public/widget/messages',
+        query: conversationId == null ? null : {'conversationId': '$conversationId'},
+      );
       final raw = res['messages'];
       if (raw is! List) return;
+      // A conversation that is not this visitor's comes back empty; keep what is on screen.
+      if (conversationId != null && res['conversationId'] is! num) return;
       final loaded = raw.whereType<Map>().map((m) => KerabieMessage.fromServer(Map<String, dynamic>.from(m))).toList();
       if (res['conversationId'] is num) _conversationId = (res['conversationId'] as num).toInt();
       if (replace) {
@@ -114,9 +211,14 @@ class KerabieController extends ChangeNotifier {
           ..addAll(loaded);
       } else {
         // After a reconnect, pick up what arrived while offline. The visitor's own messages are already shown.
+        var fresh = 0;
         for (final m in loaded) {
-          if (!m.isFromVisitor && !_messages.any((x) => x.id == m.id)) _messages.add(m);
+          if (!m.isFromVisitor && !_messages.any((x) => x.id == m.id)) {
+            _messages.add(m);
+            fresh++;
+          }
         }
+        if (!_isOpen) _unreadCount += fresh;
       }
       _notify();
     } on KerabieException {
@@ -139,6 +241,21 @@ class KerabieController extends ChangeNotifier {
     }
   }
 
+  /// Loads the visitor's conversations into [conversations].
+  Future<void> refreshConversations() async {
+    try {
+      final res = await _api?.get('/public/widget/conversations');
+      final raw = res?['conversations'];
+      if (raw is! List) return;
+      _conversations = raw.map(KerabieConversation.fromServer).whereType<KerabieConversation>().toList();
+      _notify();
+    } on KerabieException {
+      // Keep the list we have.
+    }
+  }
+
+  // ─── Identity ─────────────────────────────────────────────────────────────────
+
   /// Tells Kerabie who this visitor is. Called for you when [KerabieConfig.user] is set.
   Future<void> identify(KerabieUser user) async {
     try {
@@ -146,6 +263,53 @@ class KerabieController extends ChangeNotifier {
     } on KerabieException {
       // Identification is best effort; chat works without it.
     }
+  }
+
+  /// Call after login so agents see who they are talking to.
+  Future<void> setUser(KerabieUser user) async {
+    _user = user;
+    _notify();
+    await identify(user);
+  }
+
+  /// Call after logout. The conversation on screen is cleared and the next visitor starts a fresh anonymous session.
+  Future<void> clearUser() async {
+    _user = null;
+    _messages.clear();
+    _conversationId = null;
+    _conversations = const [];
+    _unreadCount = 0;
+    _agentsOnline = null;
+    _chatDraft = null;
+    _clearPending();
+    _clearTyping();
+    staging.remove();
+    _notify();
+    if (!_started || _disposed) return;
+    _realtime.disconnect();
+    await _storage.clear();
+    final sessionId = await _storage.sessionId();
+    if (_disposed) return;
+    _sessionId = sessionId;
+    _api?.close();
+    _api = _apiFactory(sessionId);
+    _hasReadyBefore = false;
+    _connect();
+  }
+
+  /// Adds one detail agents see next to the customer, for example `plan: pro`.
+  Future<void> updateAttribute(String key, String value) async {
+    final user = _user ?? const KerabieUser();
+    final updated = user.copyWith(customAttributes: {...user.customAttributes, key: value});
+    _user = updated;
+    _notify();
+    await identify(updated);
+  }
+
+  /// Tells Kerabie the app's version changed. It is sent with the next connection.
+  void setAppVersion(String version) {
+    _appVersion = version;
+    _notify();
   }
 
   // ─── Push notifications ───────────────────────────────────────────────────────
@@ -164,16 +328,23 @@ class KerabieController extends ChangeNotifier {
   /// Call with a notification's data when the user taps it. Returns true when it pointed at a Kerabie conversation
   /// and the chat was opened.
   bool handleNotificationData(Map<String, dynamic> data) {
-    if (KerabieDeepLink.conversationIdFromNotification(data) == null) return false;
-    showChat();
+    final id = KerabieDeepLink.conversationIdFromNotification(data);
+    if (id == null) return false;
+    _openConversation(id);
     return true;
   }
 
   /// Call with an incoming link. Returns true when it was a Kerabie conversation link and the chat was opened.
   bool handleDeepLink(Uri uri) {
-    if (KerabieDeepLink.conversationId(uri, scheme: config.deepLinkScheme) == null) return false;
-    showChat();
+    final id = KerabieDeepLink.conversationId(uri, scheme: config.deepLinkScheme);
+    if (id == null) return false;
+    _openConversation(id);
     return true;
+  }
+
+  void _openConversation(int id) {
+    if (id != _conversationId && _started) unawaited(_loadHistory(replace: true, conversationId: id));
+    showChat(route: KerabieRoute(KerabieRouteType.conversation, conversationId: id));
   }
 
   // ─── Calls ────────────────────────────────────────────────────────────────────
@@ -213,53 +384,170 @@ class KerabieController extends ChangeNotifier {
   /// Marks the chat as open and clears the unread count. The chat screen calls this itself.
   void open() {
     if (_isOpen && _unreadCount == 0) return;
+    final opening = !_isOpen;
     _isOpen = true;
     _unreadCount = 0;
     _notify();
+    if (opening) onOpenChat?.call();
   }
 
   void close() {
     if (!_isOpen) return;
     _isOpen = false;
     _notify();
+    onCloseChat?.call();
   }
 
   /// Shows the chat screen over the app. Needs the navigator key passed to [KerabieProvider]; without one, only the
-  /// state changes and your own UI shows the chat.
-  void showChat() {
+  /// state changes and your own UI shows the chat. With [KerabieOpenMode.push] your [onNavigate] is called instead.
+  void showChat({KerabieRoute route = const KerabieRoute(KerabieRouteType.inbox)}) {
     final present = presenter;
     if (present != null) {
-      present();
+      present(route);
     } else {
       open();
     }
   }
 
+  /// Takes the chat screen away again.
+  void dismissChat() {
+    final dismiss = dismisser;
+    if (dismiss != null) {
+      dismiss();
+    } else {
+      close();
+    }
+  }
+
+  void toggle() => _isOpen ? dismissChat() : showChat();
+
+  /// The search bar opens the chat with what was typed. The chat screen sends it.
+  void openWithDraft(String text) {
+    _chatDraft = text;
+    _notify();
+    showChat();
+  }
+
+  void clearChatDraft() {
+    if (_chatDraft == null) return;
+    _chatDraft = null;
+    _notify();
+  }
+
+  /// Opens the chat and tells the agent what the customer was looking at: an order, a product, a payment.
+  /// Set [KerabieChatContext.openChat] to false to only record it.
+  void openWithContext(KerabieChatContext context) {
+    final api = _api;
+    if (api == null) return;
+    // Fire and forget: a failed report must not stop the chat from opening.
+    unawaited(api.post('/public/widget/context', {
+      'contextType': context.type,
+      'contextId': context.id,
+      'contextTitle': context.title,
+      'contextData': context.data,
+    }).then((_) {}, onError: (_) {}));
+    if (context.openChat) showChat();
+  }
+
+  // ─── Screens ──────────────────────────────────────────────────────────────────
+
+  /// Tells Kerabie which screen the customer is on, as a path such as `/checkout`. Agents see the page the customer
+  /// is on, and campaigns can be limited to certain screens. [KerabieNavigatorObserver] calls this for you.
+  void trackScreen(String path, {String? title}) {
+    final next = kerabieScreenPath(path);
+    final previous = _screen;
+    if (next == previous) return;
+    final now = DateTime.now();
+    if (previous != null && _screenSince != null) {
+      _realtime.sendPageExit(path: previous, timeSpentMs: now.difference(_screenSince!).inMilliseconds);
+    }
+    _screen = next;
+    _screenSince = now;
+    _realtime.sendPage(path: next, title: title, previousPath: previous);
+    _notify();
+  }
+
+  // ─── Attachments ──────────────────────────────────────────────────────────────
+
+  /// Opens the photo library and stages the picked photo for the next message.
+  Future<void> pickPhoto() => _pick(filePicker.pickImage, 'Could not open photo library');
+
+  /// Opens the document picker and stages the picked file for the next message.
+  Future<void> pickDocument() => _pick(filePicker.pickDocument, 'Could not open document picker');
+
+  Future<void> _pick(Future<KerabiePickedFile?> Function() picker, String failure) async {
+    try {
+      final file = await picker();
+      await staging.stage(_api, file);
+    } catch (e) {
+      staging.showError(e is KerabieException ? e.message : failure);
+    }
+  }
+
   // ─── Sending ──────────────────────────────────────────────────────────────────
 
-  Future<void> sendMessage(String text) async {
+  /// Sends [text]. A photo or file staged with [pickPhoto] or [pickDocument] goes with it as the caption's attachment.
+  /// Does nothing while that file is still uploading.
+  Future<void> sendMessage(String text, {KerabieAttachment? attachment}) async {
     final body = text.trim();
-    if (body.isEmpty) return;
+    var attached = attachment;
+    if (attached == null && staging.pending != null) {
+      final file = staging.pending!;
+      final uploaded = staging.uploaded;
+      if (staging.isUploading || uploaded == null) return;
+      attached = KerabieAttachment(
+        url: file.path,
+        key: uploaded.key,
+        type: uploaded.mimeType.startsWith('image/') ? 'image' : 'file',
+        name: uploaded.fileName,
+      );
+      staging.consume();
+    }
+    if (body.isEmpty && attached == null) return;
+
+    onVisitorMessage?.call();
+    var conversationId = _conversationId;
+    // The first message of a conversation is still on its way: wait for its id, so this one joins the same conversation.
+    if (conversationId == null && _draftConversation != null) conversationId = await _draftConversation!.id.future;
+
     final tempId = 'local_${++_localCounter}';
-    _messages.add(KerabieMessage(
+    final message = KerabieMessage(
       id: tempId,
-      conversationId: _conversationId,
+      conversationId: conversationId,
       body: body,
       createdAt: DateTime.now(),
       sender: KerabieSender.visitor,
       status: KerabieMessageStatus.pending,
-    ));
+      type: attached?.type ?? 'text',
+      metadata: attached == null ? const {} : {'url': attached.url, 'fileName': attached.name},
+      attachment: attached,
+    );
+    _messages.add(message);
+
+    if (!_realtime.isConnected) {
+      _replace(tempId, (m) => m.copyWith(status: KerabieMessageStatus.failed));
+      _notify();
+      return;
+    }
+
     _pendingBodies[tempId] = body;
+    if (conversationId == null) _draftConversation = _DraftConversation(tempId);
     _failTimers[tempId] = Timer(sendTimeout, () => _markFailed(tempId));
     _notify();
-    _realtime.sendMessage(conversationId: _conversationId, body: body);
+    _realtime.sendMessage(
+      conversationId: conversationId,
+      body: body,
+      attachmentType: attached?.type,
+      attachmentKey: attached?.key,
+      attachmentName: attached?.name,
+    );
   }
 
   /// Sends a failed message again.
   Future<void> retry(KerabieMessage message) async {
     if (message.status != KerabieMessageStatus.failed) return;
     _messages.removeWhere((m) => m.id == message.id);
-    await sendMessage(message.body);
+    await sendMessage(message.body, attachment: message.attachment);
   }
 
   void sendTyping(bool typing) {
@@ -269,10 +557,24 @@ class KerabieController extends ChangeNotifier {
 
   void _markFailed(String tempId) {
     _failTimers.remove(tempId)?.cancel();
+    if (_draftConversation?.tempId == tempId) {
+      _draftConversation!.id.complete(null);
+      _draftConversation = null;
+    }
     if (!_pendingBodies.containsKey(tempId)) return;
     _pendingBodies.remove(tempId);
     _replace(tempId, (m) => m.copyWith(status: KerabieMessageStatus.failed));
     _notify();
+  }
+
+  void _clearPending() {
+    for (final timer in _failTimers.values) {
+      timer.cancel();
+    }
+    _failTimers.clear();
+    _pendingBodies.clear();
+    if (_draftConversation?.id.isCompleted == false) _draftConversation!.id.complete(null);
+    _draftConversation = null;
   }
 
   // ─── Events from the server ───────────────────────────────────────────────────
@@ -281,8 +583,8 @@ class KerabieController extends ChangeNotifier {
     switch (event.name) {
       case 'connect':
         _isConnected = true;
-        if (_hasConnectedBefore) unawaited(_loadHistory(replace: false));
-        _hasConnectedBefore = true;
+        final screen = _screen;
+        if (screen != null) _realtime.sendPage(path: screen);
       case 'disconnect':
         _isConnected = false;
         _clearTyping();
@@ -292,11 +594,17 @@ class KerabieController extends ChangeNotifier {
         final online = event.data['agentsOnline'];
         // Only a boolean here; `agents` carries the real count later.
         if (online is bool) _agentsOnline = online ? ((_agentsOnline ?? 0) > 0 ? _agentsOnline : 1) : 0;
+        // The socket does not replay what was sent while it was down, so ask for the history again after a reconnect.
+        if (_hasReadyBefore) unawaited(_loadHistory(replace: false));
+        _hasReadyBefore = true;
       case 'agents':
         final count = event.data['count'];
         if (count is num) _agentsOnline = count.toInt();
       case 'message':
         _onMessage(event.data);
+      case 'linkpreview':
+        final preview = KerabieLinkPreview.fromServer(event.data['linkPreview']);
+        if (preview != null) _replace('${event.data['messageId']}', (m) => m.copyWith(linkPreview: preview));
       case 'start':
         _onStreamStart(event.data);
       case 'chunk':
@@ -314,6 +622,13 @@ class KerabieController extends ChangeNotifier {
 
   void _onMessage(Map<String, dynamic> raw) {
     final message = KerabieMessage.fromServer(raw);
+
+    // The echo of a new conversation's first message is the earliest the server's conversation id is known.
+    final draft = _draftConversation;
+    if (draft != null && message.conversationId != null && _pendingBodies[draft.tempId] == message.body) {
+      _draftConversation = null;
+      draft.id.complete(message.conversationId);
+    }
     if (message.conversationId != null) _conversationId ??= message.conversationId;
 
     // The final text of an AI reply that was streaming in.
@@ -415,12 +730,10 @@ class KerabieController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _typingTimer?.cancel();
-    for (final timer in _failTimers.values) {
-      timer.cancel();
-    }
-    _failTimers.clear();
+    _clearPending();
     _events?.cancel();
     _callEvents.close();
+    staging.dispose();
     _realtime.dispose();
     _api?.close();
     super.dispose();

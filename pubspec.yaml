@@ -1,6 +1,6 @@
 name: kerabie_helpdesk_flutter
-description: Embed the Kerabie help desk in a Flutter app. A provider, a launcher and a real-time chat screen.
-version: 0.1.0
+description: Embed the Kerabie help desk in a Flutter app. Live chat with photos and files, a help centre, tickets, a store, campaigns and a launcher.
+version: 0.2.0
 homepage: https://kerabie.com/sdks/flutter
 repository: https://github.com/xiangdee/kerabie_helpdesk_flutter
 issue_tracker: https://github.com/xiangdee/kerabie_helpdesk_flutter/issues
@@ -16,11 +16,19 @@ environment:
   flutter: ">=3.27.0"
 
 dependencies:
+  file_picker: ^13.1.0
   flutter:
     sdk: flutter
+  flutter_widget_from_html_core: ^0.17.4
   http: ^1.2.0
+  http_parser: ^4.1.2
+  image_picker: ^1.2.4
+  intl: ^0.20.3
+  mime: ^2.1.0
+  share_plus: ^13.3.1
   shared_preferences: ^2.2.0
   socket_io_client: ^3.0.0
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_lints: ^4.0.0

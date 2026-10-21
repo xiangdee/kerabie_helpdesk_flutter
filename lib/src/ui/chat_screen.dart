@@ -2,35 +2,89 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../config.dart';
 import '../controller.dart';
 import '../models.dart';
 import '../provider.dart';
+import 'dialog.dart';
+import 'image_viewer.dart';
+import 'indicators.dart';
+import 'input_bar.dart';
+import 'knowledge_base_screen.dart';
+import 'links.dart';
 import 'message_bubble.dart';
+import 'navigator_observer.dart';
 import 'palette.dart';
+import 'pre_chat_form.dart';
+import 'settings_screen.dart';
+
+const _defaultPreChatFields = [
+  KerabieEnrichmentField(key: 'name', label: 'Your name', placeholder: 'Your name'),
+  KerabieEnrichmentField(key: 'email', label: 'Email address', type: 'email', placeholder: 'Email address'),
+];
+
+/// `{{name}}` becomes the visitor's first name. With no known name the token and the space before it are dropped
+/// ("Hi {{name}} 👋" becomes "Hi 👋").
+String kerabiePersonalize(String text, String? visitorName) {
+  final first = (visitorName ?? '').trim().split(RegExp(r'\s+')).first;
+  return text.replaceAllMapped(RegExp(r'\s*\{\{\s*name\s*\}\}', caseSensitive: false), (m) {
+    if (first.isEmpty) return '';
+    return m.group(0)!.replaceFirst(RegExp(r'\{\{\s*name\s*\}\}', caseSensitive: false), first);
+  });
+}
 
 /// Opens the chat screen.
 class KerabieChat {
   const KerabieChat._();
 
-  /// Shows the chat over the app. Call it from a button, or use [KerabieLauncher].
+  /// Shows the chat over the app, the way [KerabieConfig.openMode] says. Call it from a button, or use [KerabieLauncher].
   static Future<void> show(BuildContext context) {
     final controller = KerabieProvider.of(context, listen: false);
     return showOn(Navigator.of(context, rootNavigator: true), controller);
   }
 
   /// Shows the chat on a navigator you already hold, for example from a link or a notification tap.
-  static Future<void> showOn(NavigatorState navigator, KerabieController controller) {
+  static Future<void> showOn(
+    NavigatorState navigator,
+    KerabieController controller, {
+    KerabieRoute route = const KerabieRoute(KerabieRouteType.inbox),
+  }) {
+    final mode = controller.config.openMode;
+    // In push mode the app opens its own screen, which shows a KerabieChatScreen.
+    final onNavigate = controller.onNavigate;
+    if (mode == KerabieOpenMode.push && onNavigate != null) {
+      onNavigate(route);
+      return Future.value();
+    }
     if (_showing[controller] == true) return Future.value();
     _showing[controller] = true;
-    controller.open();
-    return navigator
-        .push(MaterialPageRoute<void>(
-          fullscreenDialog: true,
-          builder: (_) => KerabieScope(notifier: controller, child: const KerabieChatScreen()),
-        ))
-        .whenComplete(() {
+    controller.dismisser = navigator.maybePop;
+    final Future<void> shown;
+    if (mode == KerabieOpenMode.sheet) {
+      shown = showModalBottomSheet<void>(
+        context: navigator.context,
+        useRootNavigator: true,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => KerabieScope(
+          notifier: controller,
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: SizedBox(height: MediaQuery.sizeOf(navigator.context).height * 0.92, child: const KerabieChatScreen()),
+          ),
+        ),
+      );
+    } else {
+      shown = navigator.push(MaterialPageRoute<void>(
+        settings: const RouteSettings(name: kerabieChatRouteName),
+        fullscreenDialog: true,
+        builder: (_) => KerabieScope(notifier: controller, child: const KerabieChatScreen()),
+      ));
+    }
+    return shown.whenComplete(() {
       _showing[controller] = false;
-      controller.close();
+      controller.dismisser = null;
     });
   }
 
@@ -38,9 +92,13 @@ class KerabieChat {
   static final Expando<bool> _showing = Expando<bool>();
 }
 
-/// The conversation: header, messages and the box to write in.
+/// The conversation: header, messages and the box to write in. [KerabieOpenMode.push] apps put it in their own
+/// route and pass [onClose] to leave it.
 class KerabieChatScreen extends StatefulWidget {
-  const KerabieChatScreen({super.key});
+  const KerabieChatScreen({super.key, this.onClose});
+
+  /// Called by the close button. Defaults to leaving the current route.
+  final VoidCallback? onClose;
 
   @override
   State<KerabieChatScreen> createState() => _KerabieChatScreenState();
@@ -49,188 +107,358 @@ class KerabieChatScreen extends StatefulWidget {
 class _KerabieChatScreenState extends State<KerabieChatScreen> {
   final _input = TextEditingController();
   Timer? _typingStop;
-  bool _typingSent = false;
+  Timer? _offlineTimer;
+  KerabieController? _controller;
+  bool _showSettings = false;
+  bool _showOffline = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final controller = KerabieProvider.of(context, listen: false);
+    if (!identical(controller, _controller)) {
+      _controller?.removeListener(_onController);
+      _controller = controller..addListener(_onController);
+      WidgetsBinding.instance.addPostFrameCallback((_) => controller.open());
+      _onController();
+    }
+  }
 
   @override
   void dispose() {
+    final controller = _controller;
+    controller?.removeListener(_onController);
+    // After this frame: closing tells listeners, which must not happen while the tree is being torn down.
+    if (controller != null) Future.microtask(controller.close);
     _typingStop?.cancel();
+    _offlineTimer?.cancel();
     _input.dispose();
     super.dispose();
   }
 
+  bool _draftBeingHandled = false;
+
+  void _onController() {
+    final controller = _controller!;
+    // A drop that lasts three seconds shows the banner, so a normal reconnect does not flash it.
+    if (controller.isConnected) {
+      _offlineTimer?.cancel();
+      _offlineTimer = null;
+      if (_showOffline) setState(() => _showOffline = false);
+    } else {
+      _offlineTimer ??= Timer(const Duration(seconds: 3), () {
+        if (mounted && !controller.isConnected) setState(() => _showOffline = true);
+      });
+    }
+    // Handed over by the search bar: the visitor already pressed send there, so the text goes out now, unless the
+    // pre-chat form still has to collect their details, in which case it waits in the composer.
+    final draft = controller.chatDraft;
+    if (draft != null && !_draftBeingHandled) {
+      _draftBeingHandled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _draftBeingHandled = false;
+        if (!mounted) return;
+        controller.clearChatDraft();
+        if (_showPreChat(controller)) {
+          _input.text = draft;
+        } else if (draft.trim().isNotEmpty || controller.staging.pending != null) {
+          controller.sendMessage(draft);
+        }
+      });
+    }
+  }
+
+  bool _isOfflineNoBot(KerabieController c) => (c.agentsOnline ?? 0) == 0 && c.chat.chatbotEnabled != true;
+
+  List<KerabieEnrichmentField> _preChatFields(KerabieController c) {
+    final custom = c.chat.customerEnrichmentEnabled == true ? c.chat.customerEnrichmentForm ?? const [] : const <KerabieEnrichmentField>[];
+    return custom.isNotEmpty ? custom : _defaultPreChatFields;
+  }
+
+  bool _showPreChat(KerabieController c) {
+    final user = c.currentUser;
+    final answered = (user?.name?.isNotEmpty ?? false) || (user?.email?.isNotEmpty ?? false) || (user?.customAttributes.isNotEmpty ?? false);
+    return (c.chat.customerEnrichmentEnabled == true || _isOfflineNoBot(c)) && !answered && c.messages.isEmpty;
+  }
+
+  void _submitPreChat(KerabieController c, Map<String, String> answers) {
+    // name, email and phone are the contact's own fields; every other answer is a custom attribute.
+    var user = c.currentUser ?? const KerabieUser();
+    final custom = {...user.customAttributes};
+    for (final f in _preChatFields(c)) {
+      final v = (answers[f.key] ?? '').trim();
+      if (v.isEmpty) continue;
+      switch (f.key) {
+        case 'name':
+          user = user.copyWith(name: v);
+        case 'email':
+          user = user.copyWith(email: v);
+        case 'phone':
+          user = user.copyWith(phone: v);
+        default:
+          custom[f.key] = v;
+      }
+    }
+    c.setUser(user.copyWith(customAttributes: custom));
+  }
+
   void _onChanged(String text, KerabieController controller) {
     if (text.isEmpty) return;
-    if (!_typingSent) {
-      _typingSent = true;
-      controller.sendTyping(true);
-    }
+    if (_typingStop == null) controller.sendTyping(true);
     _typingStop?.cancel();
-    _typingStop = Timer(const Duration(seconds: 2), () {
-      _typingSent = false;
+    _typingStop = Timer(const Duration(milliseconds: 1500), () {
+      _typingStop = null;
       controller.sendTyping(false);
     });
   }
 
   void _send(KerabieController controller) {
-    final text = _input.text;
-    if (text.trim().isEmpty) return;
+    final text = _input.text.trim();
+    if (text.isEmpty && controller.staging.pending == null) return;
     _input.clear();
-    _typingStop?.cancel();
-    if (_typingSent) {
-      _typingSent = false;
+    if (_typingStop != null) {
+      _typingStop!.cancel();
+      _typingStop = null;
       controller.sendTyping(false);
     }
     controller.sendMessage(text);
+  }
+
+  Future<void> _chooseAttachment(KerabieController controller, KerabiePalette palette) {
+    return showKerabieDialog<void>(
+      context: context,
+      palette: palette,
+      title: 'Send attachment',
+      body: (ctx) => Column(
+        children: [
+          for (final option in const [('Photo', true), ('Document', false)])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(side: BorderSide(color: palette.border, width: 0.5), padding: const EdgeInsets.symmetric(vertical: 12)),
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    option.$2 ? controller.pickPhoto() : controller.pickDocument();
+                  },
+                  child: Text(option.$1, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: palette.text)),
+                ),
+              ),
+            ),
+        ],
+      ),
+      actions: (_) => const [],
+    );
+  }
+
+  Widget _header(KerabieController controller, KerabiePalette palette) {
+    final chat = controller.chat;
+    final agents = controller.agentsOnline ?? 0;
+    final menu = chat.layout != KerabieLayout.single || chat.showMenu == true;
+    return DecoratedBox(
+      decoration: palette.brandDecoration,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 4, 12),
+          child: Row(
+            children: [
+              if (_showSettings)
+                IconButton(
+                  tooltip: 'Back',
+                  onPressed: () => setState(() => _showSettings = false),
+                  icon: Icon(Icons.chevron_left_rounded, color: palette.onPrimary),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(left: 8, right: 10),
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: controller.isConnected ? const Color(0xFF45EE95) : palette.onPrimary.withValues(alpha: 0.45),
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _showSettings ? 'Settings' : (chat.name ?? 'Support'),
+                      style: TextStyle(color: palette.onPrimary, fontSize: 16, fontWeight: FontWeight.w600, fontFamily: palette.fontFamily),
+                    ),
+                    if (!_showSettings)
+                      Text(
+                        agents > 0 ? '$agents agent${agents > 1 ? 's' : ''} online' : (chat.offlineMessage ?? "We'll reply soon"),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: palette.onPrimary.withValues(alpha: 0.85), fontSize: 12, fontFamily: palette.fontFamily),
+                      ),
+                  ],
+                ),
+              ),
+              if (!_showSettings && menu)
+                IconButton(
+                  tooltip: 'Settings',
+                  onPressed: () => setState(() => _showSettings = true),
+                  icon: Icon(Icons.settings_outlined, size: 20, color: palette.onPrimary),
+                ),
+              IconButton(
+                tooltip: 'Close',
+                onPressed: widget.onClose ?? () => Navigator.of(context).maybePop(),
+                icon: Icon(Icons.close_rounded, color: palette.onPrimary),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _messages(KerabieController controller, KerabiePalette palette) {
+    final messages = controller.messages;
+    final chat = controller.chat;
+    if (messages.isEmpty) {
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('👋', style: TextStyle(fontSize: 28)),
+              const SizedBox(height: 12),
+              Text(
+                kerabiePersonalize(chat.welcomeMessage ?? 'Hi there! How can we help you today?', controller.visitorName),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: palette.text, fontFamily: palette.fontFamily),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    // The list is reversed so new messages sit at the bottom and the keyboard pushes it up naturally.
+    return ListView.builder(
+      reverse: true,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      itemCount: messages.length,
+      itemBuilder: (_, index) {
+        final message = messages[messages.length - 1 - index];
+        return KerabieMessageBubble(
+          key: ValueKey(message.id),
+          message: message,
+          palette: palette,
+          botAvatarUrl: controller.config.theme.chatbotAvatarUrl ?? controller.settings.chatbotAvatarUrl,
+          onRetry: () => controller.retry(message),
+          onOpenImage: (url) => showKerabieImageViewer(context, url),
+          onOpenArticle: (cite) => showKerabieArticleSheet(context, controller, palette, cite.id, cite.title),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final controller = KerabieProvider.of(context);
     final palette = KerabiePalette.of(context, controller);
-    final settings = controller.settings;
-    final messages = controller.messages;
-    final welcome = settings.welcomeMessage;
-    final online = (controller.agentsOnline ?? 0) > 0;
-
-    // The list is reversed so new messages sit at the bottom and the keyboard pushes it up naturally.
-    final itemCount = messages.length + (controller.isTyping ? 1 : 0) + (welcome != null && welcome.isNotEmpty ? 1 : 0);
-
-    Widget item(int index) {
-      var i = index;
-      if (controller.isTyping) {
-        if (i == 0) return KerabieTypingBubble(palette: palette, ai: controller.isAiTyping);
-        i -= 1;
-      }
-      if (i < messages.length) {
-        final message = messages[messages.length - 1 - i];
-        return KerabieMessageBubble(
-          message: message,
-          palette: palette,
-          botAvatarUrl: settings.chatbotAvatarUrl,
-          onRetry: () => controller.retry(message),
-        );
-      }
-      return KerabieMessageBubble(
-        message: KerabieMessage(
-          id: 'welcome',
-          body: welcome!,
-          createdAt: DateTime.now(),
-          sender: KerabieSender.agent,
-        ),
-        palette: palette,
-      );
-    }
+    final chat = controller.chat;
+    final staging = controller.staging;
+    final preChat = _showPreChat(controller);
+    final offlineNoBot = _isOfflineNoBot(controller);
+    final fields = _preChatFields(controller);
 
     return Scaffold(
       backgroundColor: palette.background,
       body: Column(
         children: [
-          DecoratedBox(
-            decoration: palette.brandDecoration,
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 8, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
+          _header(controller, palette),
+          if (_showSettings)
+            Expanded(child: KerabieSettingsScreen(controller: controller, palette: palette))
+          else ...[
+            if (_showOffline)
+              Container(
+                width: double.infinity,
+                color: const Color(0xFFD97706),
+                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                child: const Text(
+                  "Can't reach chat right now — reconnecting…",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+              ),
+            Expanded(child: _messages(controller, palette)),
+            if (preChat)
+              KerabiePreChatForm(
+                fields: fields,
+                title: offlineNoBot ? "We're offline right now" : 'Before we start',
+                subtitle: offlineNoBot ? "Leave your details and we'll get back to you" : 'Share your details so we can follow up',
+                submitLabel: offlineNoBot ? 'Send' : 'Start chat',
+                requireContact: identical(fields, _defaultPreChatFields),
+                initial: {'name': controller.currentUser?.name ?? '', 'email': controller.currentUser?.email ?? ''},
+                palette: palette,
+                onSubmit: (answers) => _submitPreChat(controller, answers),
+              ),
+            if (controller.isTyping && chat.typingIndicator != false)
+              controller.isAiTyping ? KerabieAiOrb(palette: palette) : KerabieTypingDots(palette: palette),
+            ListenableBuilder(
+              listenable: staging,
+              builder: (_, __) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (staging.error != null)
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFFECACA), width: 0.5),
+                      ),
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            settings.name ?? 'Support',
-                            style: TextStyle(color: palette.onPrimary, fontSize: 18, fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: online ? const Color(0xFF45EE95) : palette.onPrimary.withValues(alpha: 0.45),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  online ? 'Online' : (settings.offlineMessage ?? 'We will reply as soon as we can'),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(color: palette.onPrimary.withValues(alpha: 0.85), fontSize: 13),
-                                ),
-                              ),
-                            ],
-                          ),
+                          Expanded(child: Text(staging.error!, style: const TextStyle(fontSize: 12.5, height: 1.4, color: Color(0xFFB91C1C)))),
+                          InkWell(onTap: staging.dismissError, child: const Icon(Icons.close_rounded, size: 14, color: Color(0xFFB91C1C))),
                         ],
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Close',
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: Icon(Icons.close_rounded, color: palette.onPrimary),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              reverse: true,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              itemCount: itemCount,
-              itemBuilder: (_, index) => item(index),
-            ),
-          ),
-          if (settings.showBranding)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text('Powered by Kerabie', style: TextStyle(fontSize: 11, color: palette.muted)),
-            ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _input,
-                      minLines: 1,
-                      maxLines: 4,
-                      textCapitalization: TextCapitalization.sentences,
-                      onChanged: (t) => _onChanged(t, controller),
-                      style: TextStyle(color: palette.text),
-                      decoration: InputDecoration(
-                        hintText: 'Write a message',
-                        hintStyle: TextStyle(color: palette.muted),
-                        filled: true,
-                        fillColor: palette.surface,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Material(
-                    color: palette.primary,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: () => _send(controller),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Icon(Icons.send_rounded, size: 20, color: palette.onPrimary),
-                      ),
-                    ),
+                  KerabieInputBar(
+                    controller: _input,
+                    palette: palette,
+                    storage: controller.storage,
+                    disabled: !controller.isConnected,
+                    placeholder: controller.isConnected ? null : 'Waiting for connection…',
+                    pending: staging.pending,
+                    isUploading: staging.isUploading,
+                    onRemoveAttachment: staging.remove,
+                    onAttach: chat.enableFileAttachments == false ? null : () => _chooseAttachment(controller, palette),
+                    onChanged: (t) => _onChanged(t, controller),
+                    onSend: () => _send(controller),
                   ),
                 ],
               ),
             ),
-          ),
+            if (chat.showBranding != false)
+              SafeArea(
+                top: false,
+                child: InkWell(
+                  onTap: () => openKerabieLink('https://kerabie.com/?utm_source=widget&utm_medium=powered_by'),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text.rich(
+                      TextSpan(
+                        text: 'Powered by ',
+                        children: [TextSpan(text: 'Kerabie', style: TextStyle(fontWeight: FontWeight.w600, color: palette.muted))],
+                      ),
+                      style: TextStyle(fontSize: 11, color: palette.subtle),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ],
       ),
     );

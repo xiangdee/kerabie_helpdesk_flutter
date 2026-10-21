@@ -53,12 +53,12 @@ void main() {
         'borderRadius': 'small',
         'showBranding': false,
       });
-      expect(s.name, 'Acme');
+      expect(s.chat.name, 'Acme');
       expect(s.primaryColor, const Color(0xFF2F5F49));
       expect(s.secondaryColor, const Color(0xFF0F766E));
       expect(s.gradient, isFalse);
       expect(s.cornerRadius, 8);
-      expect(s.showBranding, isFalse);
+      expect(s.chat.showBranding, isFalse);
     });
 
     test('reads the custom launcher icon, its size and the chatbot avatar, and ignores blanks', () {
@@ -80,8 +80,8 @@ void main() {
     test('defaults when the server says nothing', () {
       final s = KerabieSettings.fromServer({});
       expect(s.gradient, isTrue);
-      expect(s.showBranding, isTrue);
-      expect(s.chatbotEnabled, isTrue);
+      expect(s.chat.showBranding, isNull);
+      expect(s.chat.chatbotEnabled, isNull);
       expect(s.cornerRadius, isNull);
     });
   });
