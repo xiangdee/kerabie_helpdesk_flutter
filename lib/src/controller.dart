@@ -46,7 +46,7 @@ class KerabieController extends ChangeNotifier {
         _user = config.user,
         _appVersion = config.appVersion,
         _apiFactory = apiFactory ??
-            ((sessionId) => KerabieApi(baseUrl: config.baseUrl, widgetKey: config.widgetKey, sessionId: sessionId));
+            ((sessionId) => KerabieApi(baseUrl: kerabieDefaultBaseUrl, widgetKey: config.widgetKey, sessionId: sessionId));
 
   final KerabieConfig config;
 
@@ -183,7 +183,7 @@ class KerabieController extends ChangeNotifier {
 
   void _connect() {
     _realtime.connect(
-      baseUrl: config.baseUrl,
+      baseUrl: kerabieDefaultBaseUrl,
       orgId: _orgId,
       sessionId: _sessionId!,
       appName: config.appName,

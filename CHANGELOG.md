@@ -1,3 +1,8 @@
+## 0.2.1
+
+- Agents see whether the customer is on iOS or Android next to the app version.
+- Removed the `baseUrl` option: the SDK always talks to Kerabie.
+
 ## 0.2.0
 
 - Photos and files in the chat: pick one, it uploads in the background, and it goes out with your caption. Images open full screen.

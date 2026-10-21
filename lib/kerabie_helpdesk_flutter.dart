@@ -19,8 +19,7 @@ export 'src/config.dart'
         KerabieRouteType,
         KerabieSettings,
         KerabieTheme,
-        KerabieThemeMode,
-        kerabieDefaultBaseUrl;
+        KerabieThemeMode;
 export 'src/controller.dart' show KerabieController, KerabiePushProvider, kerabieScreenPath;
 export 'src/deep_link.dart' show KerabieDeepLink;
 export 'src/knowledge_base.dart' show KerabieArticle, KerabieArticleFeedback, KerabieKnowledgeBase;

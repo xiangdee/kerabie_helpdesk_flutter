@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import 'models.dart';
@@ -89,6 +90,9 @@ class SocketIoRealtime implements KerabieRealtime {
           'appName': appName,
           'appVersion': appVersion,
           'appBuild': appBuild,
+          // Lets agents see ios or android next to the app version.
+          if (defaultTargetPlatform == TargetPlatform.iOS) 'platform': 'ios',
+          if (defaultTargetPlatform == TargetPlatform.android) 'platform': 'android',
           ...?user?.customAttributes,
         },
       });

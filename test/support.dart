@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:kerabie_helpdesk_flutter/kerabie_helpdesk_flutter.dart';
 import 'package:kerabie_helpdesk_flutter/src/api_client.dart';
 import 'package:kerabie_helpdesk_flutter/src/attachments.dart';
+import 'package:kerabie_helpdesk_flutter/src/config.dart' show kerabieDefaultBaseUrl;
 import 'package:kerabie_helpdesk_flutter/src/realtime.dart';
 import 'package:kerabie_helpdesk_flutter/src/storage.dart';
 
@@ -134,6 +135,6 @@ KerabieController makeController({
     uploader: uploader,
     storage: KerabieStorage(generate: generateSession ?? () => 'ks_fixed'),
     sendTimeout: sendTimeout,
-    apiFactory: (sid) => KerabieApi(baseUrl: config.baseUrl, widgetKey: config.widgetKey, sessionId: sid, client: server.client),
+    apiFactory: (sid) => KerabieApi(baseUrl: kerabieDefaultBaseUrl, widgetKey: config.widgetKey, sessionId: sid, client: server.client),
   );
 }

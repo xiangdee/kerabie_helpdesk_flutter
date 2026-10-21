@@ -87,7 +87,6 @@ ElevatedButton(onPressed: () => KerabieChat.show(context), child: const Text('Ch
 | `defaultOpen` | No | Open the chat as soon as the app has built |
 | `hideFloatingButton` | No | Make `KerabieLauncher` draw nothing; open the chat from your own button |
 | `deepLinkScheme` | No | Your app's URL scheme. When set, only `myapp://conversation/123` links open the chat |
-| `baseUrl` | No | Only for a self-hosted or staging backend |
 
 The welcome message can use `{{name}}`, which becomes the signed-in user's first name (and disappears, with the space before it, when the name is not known).
 

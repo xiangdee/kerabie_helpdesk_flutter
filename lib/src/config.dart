@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'models.dart';
 
-/// Where the SDK talks to. Change it only for a self-hosted or staging backend.
+/// Where the SDK talks to.
 const String kerabieDefaultBaseUrl = 'https://api.kerabie.com';
 
 /// How the chat opens. [modal] is a full-screen page, [sheet] a bottom sheet over your app, and [push] hands the
@@ -42,7 +42,6 @@ class KerabieConfig {
     this.user,
     this.theme = const KerabieTheme(),
     this.deepLinkScheme,
-    this.baseUrl = kerabieDefaultBaseUrl,
     this.openMode = KerabieOpenMode.modal,
     this.position = KerabiePosition.bottomRight,
     this.defaultOpen = false,
@@ -65,7 +64,6 @@ class KerabieConfig {
   /// Your app's URL scheme, for example `myapp`. When set, only `myapp://conversation/123` links open the chat;
   /// when null a conversation link with any scheme opens it.
   final String? deepLinkScheme;
-  final String baseUrl;
 
   final KerabieOpenMode openMode;
 
