@@ -11,6 +11,7 @@ jobs:
   publish:
     permissions:
       id-token: write # lets GitHub authenticate to pub.dev
+      pull-requests: write # the shared workflow asks for it, and a caller must grant what it asks for
     uses: dart-lang/ecosystem/.github/workflows/publish.yaml@main
     with:
       use-flutter: true
