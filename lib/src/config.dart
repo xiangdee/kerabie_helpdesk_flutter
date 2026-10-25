@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'guided.dart';
 import 'models.dart';
 
 /// Where the SDK talks to.
@@ -193,6 +194,7 @@ class KerabieChatSettings {
     this.searchbarPlaceholder,
     this.customerEnrichmentEnabled,
     this.customerEnrichmentForm,
+    this.guidedGreeting,
   });
 
   /// The title in the chat header.
@@ -220,6 +222,9 @@ class KerabieChatSettings {
   final bool? customerEnrichmentEnabled;
   final List<KerabieEnrichmentField>? customerEnrichmentForm;
 
+  /// The organisation's guided flow opens the chat with this question and its buttons (a menu built in the dashboard).
+  final KerabieGuidedGreeting? guidedGreeting;
+
   /// These settings with every non-null field of [other] on top.
   KerabieChatSettings merge(KerabieChatSettings other) => KerabieChatSettings(
         name: other.name ?? name,
@@ -235,6 +240,7 @@ class KerabieChatSettings {
         searchbarPlaceholder: other.searchbarPlaceholder ?? searchbarPlaceholder,
         customerEnrichmentEnabled: other.customerEnrichmentEnabled ?? customerEnrichmentEnabled,
         customerEnrichmentForm: other.customerEnrichmentForm ?? customerEnrichmentForm,
+        guidedGreeting: other.guidedGreeting ?? guidedGreeting,
       );
 }
 
@@ -314,6 +320,7 @@ class KerabieSettings {
         searchbarPlaceholder: text(s['searchbarPlaceholder']),
         customerEnrichmentEnabled: flag(s['customerEnrichmentEnabled']),
         customerEnrichmentForm: fields,
+        guidedGreeting: KerabieGuidedGreeting.fromServer(s['guidedGreeting']),
       ),
       ticketsEnabled: s['ticketsEnabled'] == true,
       callsEnabled: s['callsEnabled'] == true,

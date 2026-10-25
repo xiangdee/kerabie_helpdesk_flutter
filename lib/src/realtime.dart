@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
+import 'guided.dart';
 import 'models.dart';
 
 /// Something the server pushed. Names are the SDK's own: `connect`, `disconnect`, `ready`, `message`,
@@ -32,7 +33,8 @@ abstract class KerabieRealtime {
 
   /// A null [conversationId] starts a new conversation; the server creates it and echoes the message back.
   /// An attachment goes as its [attachmentType] (`image` or `file`) and the key the upload returned.
-  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName});
+  /// A [choice] marks a tap on a guided flow's button; [body] is then the button's label.
+  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName, KerabieChoice? choice});
   void sendTyping(int conversationId, bool typing);
 
   /// The visitor moved to another screen. [path] looks like a URL path, for example `/checkout`.
@@ -124,10 +126,11 @@ class SocketIoRealtime implements KerabieRealtime {
   }
 
   @override
-  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName}) {
+  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName, KerabieChoice? choice}) {
     _socket?.emit('visitor:message', {
       'conversationId': conversationId,
       'body': body,
+      if (choice != null) 'choice': {'flowId': choice.flowId, 'choiceId': choice.choiceId},
       if (attachmentType != null) 'type': attachmentType,
       if (attachmentType != null) 'metadata': {'key': attachmentKey, 'fileName': attachmentName},
     });

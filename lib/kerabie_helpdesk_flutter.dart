@@ -22,6 +22,7 @@ export 'src/config.dart'
         KerabieThemeMode;
 export 'src/controller.dart' show KerabieController, KerabiePushProvider, kerabieScreenPath;
 export 'src/deep_link.dart' show KerabieDeepLink;
+export 'src/guided.dart' show KerabieChoice, KerabieGuidedChoice, KerabieGuidedGreeting, kerabieActiveChoices;
 export 'src/knowledge_base.dart' show KerabieArticle, KerabieArticleFeedback, KerabieKnowledgeBase;
 export 'src/models.dart'
     show

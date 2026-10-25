@@ -282,12 +282,12 @@ class KerabieMessage {
   bool get isFromVisitor => sender == KerabieSender.visitor;
 
   /// Builds a message from the server's wire format. The server says `senderRole: customer | agent`;
-  /// an AI reply is an agent message whose `metadata.source` is `ai`.
+  /// an AI reply (or a guided flow's question) is an agent message whose `metadata.source` is `ai` (or `guided`).
   factory KerabieMessage.fromServer(Map<String, dynamic> raw) {
     final metadata = raw['metadata'] is Map ? Map<String, dynamic>.from(raw['metadata'] as Map) : <String, dynamic>{};
     final sender = raw['senderRole'] == 'customer'
         ? KerabieSender.visitor
-        : metadata['source'] == 'ai'
+        : metadata['source'] == 'ai' || metadata['source'] == 'guided'
             ? KerabieSender.bot
             : KerabieSender.agent;
     return KerabieMessage(

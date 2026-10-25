@@ -6,6 +6,7 @@ import 'api_client.dart';
 import 'attachments.dart';
 import 'config.dart';
 import 'deep_link.dart';
+import 'guided.dart';
 import 'models.dart';
 import 'realtime.dart';
 import 'storage.dart';
@@ -488,7 +489,9 @@ class KerabieController extends ChangeNotifier {
 
   /// Sends [text]. A photo or file staged with [pickPhoto] or [pickDocument] goes with it as the caption's attachment.
   /// Does nothing while that file is still uploading.
-  Future<void> sendMessage(String text, {KerabieAttachment? attachment}) async {
+  ///
+  /// A [choice] marks a tap on a guided flow's button: [text] is then the button's label.
+  Future<void> sendMessage(String text, {KerabieAttachment? attachment, KerabieChoice? choice}) async {
     final body = text.trim();
     var attached = attachment;
     if (attached == null && staging.pending != null) {
@@ -540,6 +543,7 @@ class KerabieController extends ChangeNotifier {
       attachmentType: attached?.type,
       attachmentKey: attached?.key,
       attachmentName: attached?.name,
+      choice: choice,
     );
   }
 

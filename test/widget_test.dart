@@ -133,4 +133,78 @@ void main() {
     expect(find.text('Hi Ada, how can we help?'), findsOneWidget);
     fresh.dispose();
   });
+
+  testWidgets('the guided flow opens the chat with its question and buttons, and a tap sends the choice', (tester) async {
+    final guided = FakeServer({
+      'GET /public/widget/init': {
+        'orgId': 42,
+        'settings': {
+          'name': 'Acme Support',
+          'welcomeMessage': 'Hello',
+          'chatbotEnabled': true,
+          'guidedGreeting': {
+            'flowId': 'f1',
+            'message': 'What would you like help with?',
+            'choices': [
+              {'id': 'plan', 'label': 'Help me choose a plan'},
+              {'id': 'sales', 'label': 'Chat with sales'},
+            ],
+          },
+        },
+      },
+      'GET /public/widget/messages': {'conversationId': null, 'messages': []},
+    });
+    final fresh = makeController(realtime: realtime, server: guided);
+    await fresh.start();
+    realtime.emit('connect');
+    await tester.pumpWidget(
+      KerabieProvider(
+        config: sampleConfig,
+        controller: fresh,
+        navigatorKey: navigatorKey,
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          home: const Scaffold(body: Stack(children: [Center(child: Text('My app')), KerabieLauncher()])),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(KerabieLauncherButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('What would you like help with?'), findsOneWidget);
+    expect(find.text('Hello'), findsNothing);
+    expect(find.text('Help me choose a plan'), findsOneWidget);
+    expect(find.text('Chat with sales'), findsOneWidget);
+
+    await tester.tap(find.text('Help me choose a plan'));
+    await tester.pump();
+
+    expect(realtime.sent.single.body, 'Help me choose a plan');
+    expect(realtime.choices.single, (flowId: 'f1', choiceId: 'plan'));
+    await tester.pump(const Duration(milliseconds: 100)); // the unsent message's timeout fires
+    fresh.dispose();
+  });
+
+  testWidgets('buttons on the latest bot message show until the visitor answers it', (tester) async {
+    await tester.pumpWidget(app());
+    await tester.tap(find.byType(KerabieLauncherButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Yes please'), findsNothing);
+
+    realtime.emit('message', {
+      ...serverMessage(9, 'Want a demo?'),
+      'metadata': {
+        'source': 'guided',
+        'flowId': 'f1',
+        'choices': [{'id': 'y', 'label': 'Yes please'}],
+      },
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Yes please'), findsOneWidget);
+
+    await tester.tap(find.text('Yes please'));
+    await tester.pump();
+    expect(realtime.choices.single, (flowId: 'f1', choiceId: 'y'));
+    await tester.pump(const Duration(milliseconds: 100)); // the unsent message's timeout fires
+  });
 }
