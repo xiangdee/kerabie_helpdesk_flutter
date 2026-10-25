@@ -207,4 +207,41 @@ void main() {
     expect(realtime.choices.single, (flowId: 'f1', choiceId: 'y'));
     await tester.pump(const Duration(milliseconds: 100)); // the unsent message's timeout fires
   });
+
+  testWidgets('an empty chat asks again for the opening question of the screen the visitor is on', (tester) async {
+    final flow = FakeServer({
+      'GET /public/widget/init': {
+        'orgId': 42,
+        'settings': {'name': 'Acme Support', 'chatbotEnabled': true},
+      },
+      'GET /public/widget/messages': {'conversationId': null, 'messages': []},
+      'GET /public/widget/greeting': {
+        'guidedGreeting': {
+          'flowId': 'f2',
+          'message': 'Questions about pricing?',
+          'choices': [{'id': 'p', 'label': 'See plans'}],
+        },
+      },
+    });
+    final fresh = makeController(realtime: realtime, server: flow);
+    await fresh.start();
+    realtime.emit('connect');
+    await tester.pumpWidget(
+      KerabieProvider(
+        config: sampleConfig,
+        controller: fresh,
+        navigatorKey: navigatorKey,
+        child: MaterialApp(
+          navigatorKey: navigatorKey,
+          home: const Scaffold(body: Stack(children: [Center(child: Text('My app')), KerabieLauncher()])),
+        ),
+      ),
+    );
+    await tester.tap(find.byType(KerabieLauncherButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Questions about pricing?'), findsOneWidget);
+    expect(find.text('See plans'), findsOneWidget);
+    fresh.dispose();
+  });
 }

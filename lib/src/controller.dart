@@ -389,7 +389,31 @@ class KerabieController extends ChangeNotifier {
     _isOpen = true;
     _unreadCount = 0;
     _notify();
-    if (opening) onOpenChat?.call();
+    if (opening) {
+      onOpenChat?.call();
+      if (_messages.isEmpty) refreshGuidedGreeting();
+    }
+  }
+
+  KerabieGuidedGreeting? _greeting;
+  bool _greetingAsked = false;
+
+  /// The question and buttons the organisation's chat flow opens with, for the screen the visitor is on now.
+  /// Starts as what the widget settings carried, and is asked for again each time an empty chat opens, because
+  /// the flow can differ by screen.
+  KerabieGuidedGreeting? get guidedGreeting => _greetingAsked ? _greeting : chat.guidedGreeting;
+
+  /// Asks the server for the opening question of this screen. A failed request keeps what is shown.
+  Future<void> refreshGuidedGreeting() async {
+    try {
+      final res = await _api?.get('/public/widget/greeting');
+      if (res == null) return;
+      _greeting = KerabieGuidedGreeting.fromServer(res['guidedGreeting']);
+      _greetingAsked = true;
+      _notify();
+    } on KerabieException {
+      // Keep what is on screen.
+    }
   }
 
   void close() {

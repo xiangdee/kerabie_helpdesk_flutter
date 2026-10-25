@@ -323,7 +323,7 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
   Widget _messages(KerabieController controller, KerabiePalette palette) {
     final messages = controller.messages;
     final chat = controller.chat;
-    final greeting = chat.guidedGreeting;
+    final greeting = controller.guidedGreeting;
     if (messages.isEmpty && greeting != null) {
       // The organisation's guided flow opens the chat with a question and buttons. It is only on screen here; the
       // server saves it as the conversation's first message once a button is tapped.
@@ -388,7 +388,7 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
     final offlineNoBot = _isOfflineNoBot(controller);
     final fields = _preChatFields(controller);
     // Guided flow buttons: the greeting's, or those on the latest bot message until the visitor answers it.
-    final guided = kerabieActiveChoices(controller.messages, chat.guidedGreeting, greetingAllowed: !preChat);
+    final guided = kerabieActiveChoices(controller.messages, controller.guidedGreeting, greetingAllowed: !preChat);
 
     return Scaffold(
       backgroundColor: palette.background,
