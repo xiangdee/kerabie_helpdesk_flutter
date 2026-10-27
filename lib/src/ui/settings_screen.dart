@@ -6,20 +6,22 @@ import 'package:share_plus/share_plus.dart';
 
 import '../api_client.dart';
 import '../controller.dart';
-import '../models.dart';
 import 'dialog.dart';
 import 'palette.dart';
 
 final _emailPattern = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
 const _danger = Color(0xFFDC2626);
 
-/// Change name, download or email the transcript, and the privacy rows: download or erase everything held about the
+/// Download or email the transcript, and the privacy rows: download or erase everything held about the
 /// visitor. The same rows the web widget's help screen has.
 class KerabieSettingsScreen extends StatefulWidget {
-  const KerabieSettingsScreen({super.key, required this.controller, required this.palette});
+  const KerabieSettingsScreen({super.key, required this.controller, required this.palette, this.footer});
 
   final KerabieController controller;
   final KerabiePalette palette;
+
+  /// Shown under the options (the Help tab puts the FAQs here).
+  final Widget? footer;
 
   @override
   State<KerabieSettingsScreen> createState() => _KerabieSettingsScreenState();
@@ -38,25 +40,6 @@ class _KerabieSettingsScreenState extends State<KerabieSettingsScreen> {
     Timer(const Duration(seconds: 3), () {
       if (mounted) setState(() => _notice.remove(key));
     });
-  }
-
-  Future<void> _changeName() async {
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) => _TextDialog(
-        palette: _p,
-        title: 'Change name',
-        hint: 'This is the name our team sees in your conversations.',
-        placeholder: 'Your name',
-        initial: _c.currentUser?.name ?? '',
-        confirmLabel: 'Save',
-        maxLength: 80,
-      ),
-    );
-    final trimmed = name?.trim() ?? '';
-    if (trimmed.isEmpty) return;
-    await _c.setUser((_c.currentUser ?? const KerabieUser()).copyWith(name: trimmed));
-    _flash('name', '✓ Saved!');
   }
 
   Future<void> _downloadTranscript() async {
@@ -98,7 +81,7 @@ class _KerabieSettingsScreenState extends State<KerabieSettingsScreen> {
         },
       ),
     );
-    if (sent == true) _flash('email', '✓ Sent!');
+    if (sent == true) _flash('email', 'Sent');
   }
 
   Future<void> _downloadMyData() async {
@@ -170,17 +153,33 @@ class _KerabieSettingsScreenState extends State<KerabieSettingsScreen> {
 
   TextStyle _hint(Color color) => TextStyle(fontSize: 12.5, color: color, fontFamily: _p.fontFamily);
 
-  Widget _row(String label, String hint, VoidCallback onTap, {Color? labelColor, String? key}) {
+  Widget _row(IconData icon, String label, String hint, VoidCallback onTap, {Color? labelColor, String? key, bool first = false}) {
+    final danger = labelColor == _danger;
     return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(border: first ? null : Border(top: BorderSide(color: _p.border, width: 0.5))),
+        child: Row(
           children: [
-            Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: labelColor ?? _p.text, fontFamily: _p.fontFamily)),
-            const SizedBox(height: 2),
-            Text(_notice[key ?? label] ?? hint, style: _hint(_p.muted)),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: danger ? const Color(0xFFFEE2E2) : _p.primary),
+              child: Icon(icon, size: 16, color: danger ? _danger : _p.onPrimary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: labelColor ?? _p.text, fontFamily: _p.fontFamily)),
+                  const SizedBox(height: 2),
+                  Text(_notice[key ?? label] ?? hint, style: _hint(_p.muted)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, size: 18, color: _p.subtle),
           ],
         ),
       ),
@@ -190,18 +189,31 @@ class _KerabieSettingsScreenState extends State<KerabieSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: _p.background,
+      color: _p.surface,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
         children: [
-          _row('Change Name', _c.currentUser?.name ?? 'Set the name shown to our team', _changeName, key: 'name'),
-          if (_c.conversationId != null) ...[
-            _row('Download Transcript', 'Share a copy of your chat history', _downloadTranscript, key: 'download'),
-            _row('Email Transcript', 'Send transcript to your email', _emailTranscript, key: 'email'),
-          ],
-          Divider(height: 16, thickness: 0.5, color: _p.border),
-          _row('Download my data', 'Get a copy of the data we hold about you', _downloadMyData, key: 'data'),
-          _row('Delete my data', 'Permanently erase your conversations and contact details', _deleteMyData, labelColor: _danger),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 10),
+            child: Text('OPTIONS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: _p.muted, fontFamily: _p.fontFamily)),
+          ),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: ColoredBox(
+              color: _p.background,
+              child: Column(
+                children: [
+                  if (_c.conversationId != null) ...[
+                    _row(Icons.file_download_outlined, 'Download Transcript', 'Share a copy of your chat history', _downloadTranscript, key: 'download', first: true),
+                    _row(Icons.mail_outline_rounded, 'Email Transcript', 'Send transcript to your email', _emailTranscript, key: 'email'),
+                  ],
+                  _row(Icons.shield_outlined, 'Download my data', 'Get a copy of the data we hold about you', _downloadMyData, key: 'data', first: _c.conversationId == null),
+                  _row(Icons.delete_outline_rounded, 'Delete my data', 'Permanently erase your conversations and contact details', _deleteMyData, labelColor: _danger),
+                ],
+              ),
+            ),
+          ),
+          if (widget.footer != null) widget.footer!,
         ],
       ),
     );
@@ -219,7 +231,6 @@ class _TextDialog extends StatefulWidget {
     required this.initial,
     required this.confirmLabel,
     this.busyLabel,
-    this.maxLength,
     this.keyboard,
     this.validate,
     this.submit,
@@ -232,7 +243,6 @@ class _TextDialog extends StatefulWidget {
   final String initial;
   final String confirmLabel;
   final String? busyLabel;
-  final int? maxLength;
   final TextInputType? keyboard;
 
   /// Returns a problem to show, or null when the text is fine.
@@ -290,7 +300,6 @@ class _TextDialogState extends State<_TextDialog> {
           TextField(
             controller: _input,
             autofocus: true,
-            maxLength: widget.maxLength,
             keyboardType: widget.keyboard,
             onSubmitted: (_) => _confirm(),
             textCapitalization: widget.keyboard == TextInputType.emailAddress ? TextCapitalization.none : TextCapitalization.words,

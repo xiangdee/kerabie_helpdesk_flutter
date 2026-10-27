@@ -19,6 +19,7 @@ import 'navigator_observer.dart';
 import 'palette.dart';
 import 'pre_chat_form.dart';
 import 'settings_screen.dart';
+import 'widget_shell.dart';
 
 const _defaultPreChatFields = [
   KerabieEnrichmentField(key: 'name', label: 'Your name', placeholder: 'Your name'),
@@ -73,7 +74,7 @@ class KerabieChat {
           notifier: controller,
           child: ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: SizedBox(height: MediaQuery.sizeOf(navigator.context).height * 0.92, child: const KerabieChatScreen()),
+            child: SizedBox(height: MediaQuery.sizeOf(navigator.context).height * 0.92, child: KerabieWidget(initialRoute: route)),
           ),
         ),
       );
@@ -81,7 +82,7 @@ class KerabieChat {
       shown = navigator.push(MaterialPageRoute<void>(
         settings: const RouteSettings(name: kerabieChatRouteName),
         fullscreenDialog: true,
-        builder: (_) => KerabieScope(notifier: controller, child: const KerabieChatScreen()),
+        builder: (_) => KerabieScope(notifier: controller, child: KerabieWidget(initialRoute: route)),
       ));
     }
     return shown.whenComplete(() {
@@ -94,13 +95,20 @@ class KerabieChat {
   static final Expando<bool> _showing = Expando<bool>();
 }
 
-/// The conversation: header, messages and the box to write in. [KerabieOpenMode.push] apps put it in their own
-/// route and pass [onClose] to leave it.
+/// Just the conversation: header, messages and the box to write in, without the tabs. Use [KerabieWidget] for the
+/// whole widget; use this when you want your own navigation around the chat. [KerabieOpenMode.push] apps can put
+/// either in their own route and pass [onClose] to leave it.
 class KerabieChatScreen extends StatefulWidget {
-  const KerabieChatScreen({super.key, this.onClose});
+  const KerabieChatScreen({super.key, this.onClose, this.onBack, this.embedded = false});
 
   /// Called by the close button. Defaults to leaving the current route.
   final VoidCallback? onClose;
+
+  /// Shows a back arrow instead of the connection dot, and drops the settings button (settings live in the Help tab).
+  final VoidCallback? onBack;
+
+  /// Set by [KerabieWidget], which marks the chat open and closed itself as the visitor moves between tabs.
+  final bool embedded;
 
   @override
   State<KerabieChatScreen> createState() => _KerabieChatScreenState();
@@ -121,7 +129,7 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
     if (!identical(controller, _controller)) {
       _controller?.removeListener(_onController);
       _controller = controller..addListener(_onController);
-      WidgetsBinding.instance.addPostFrameCallback((_) => controller.open());
+      if (!widget.embedded) WidgetsBinding.instance.addPostFrameCallback((_) => controller.open());
       _onController();
     }
   }
@@ -131,7 +139,7 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
     final controller = _controller;
     controller?.removeListener(_onController);
     // After this frame: closing tells listeners, which must not happen while the tree is being torn down.
-    if (controller != null) Future.microtask(controller.close);
+    if (controller != null && !widget.embedded) Future.microtask(controller.close);
     _typingStop?.cancel();
     _offlineTimer?.cancel();
     _input.dispose();
@@ -257,7 +265,7 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
   Widget _header(KerabieController controller, KerabiePalette palette) {
     final chat = controller.chat;
     final agents = controller.agentsOnline ?? 0;
-    final menu = chat.layout != KerabieLayout.single || chat.showMenu == true;
+    final menu = widget.onBack == null && (chat.layout != KerabieLayout.single || chat.showMenu == true);
     return DecoratedBox(
       decoration: palette.brandDecoration,
       child: SafeArea(
@@ -266,10 +274,10 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
           padding: const EdgeInsets.fromLTRB(8, 8, 4, 12),
           child: Row(
             children: [
-              if (_showSettings)
+              if (_showSettings || widget.onBack != null)
                 IconButton(
                   tooltip: 'Back',
-                  onPressed: () => setState(() => _showSettings = false),
+                  onPressed: _showSettings ? () => setState(() => _showSettings = false) : widget.onBack,
                   icon: Icon(Icons.chevron_left_rounded, color: palette.onPrimary),
                 )
               else
@@ -346,7 +354,12 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('👋', style: TextStyle(fontSize: 28)),
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: palette.surface),
+                child: Icon(Icons.chat_bubble_outline_rounded, size: 24, color: palette.accent),
+              ),
               const SizedBox(height: 12),
               Text(
                 kerabiePersonalize(chat.welcomeMessage ?? 'Hi there! How can we help you today?', controller.visitorName),

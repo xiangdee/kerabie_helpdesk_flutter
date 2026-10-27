@@ -155,7 +155,7 @@ class _KerabieKnowledgeBaseScreenState extends State<KerabieKnowledgeBaseScreen>
         height: 40,
         color: palette.primary.withValues(alpha: 0.12),
         alignment: Alignment.center,
-        child: const Text('📄', style: TextStyle(fontSize: 18)),
+        child: Icon(Icons.description_outlined, size: 18, color: palette.accent),
       );
 }
 

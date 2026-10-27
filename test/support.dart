@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter_test/flutter_test.dart';
+
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:kerabie_helpdesk_flutter/kerabie_helpdesk_flutter.dart';
@@ -141,4 +143,14 @@ KerabieController makeController({
     sendTimeout: sendTimeout,
     apiFactory: (sid) => KerabieApi(baseUrl: kerabieDefaultBaseUrl, widgetKey: config.widgetKey, sessionId: sid, client: server.client),
   );
+}
+
+/// The widget opens on Home; this taps its "Ask our AI" / "Chat with us" card to get to the conversation. Does nothing
+/// when the widget already opened on the chat (the single layout).
+Future<void> enterChat(WidgetTester tester) async {
+  await tester.pumpAndSettle();
+  final card = find.text('Ask our AI').evaluate().isNotEmpty ? find.text('Ask our AI') : find.text('Chat with us');
+  if (card.evaluate().isEmpty) return;
+  await tester.tap(card.first);
+  await tester.pumpAndSettle();
 }

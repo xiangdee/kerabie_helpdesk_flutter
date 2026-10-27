@@ -195,6 +195,13 @@ class KerabieChatSettings {
     this.customerEnrichmentEnabled,
     this.customerEnrichmentForm,
     this.guidedGreeting,
+    this.logoUrl,
+    this.showNavigation,
+    this.showGreeting,
+    this.greetingText,
+    this.showStatusChip,
+    this.statusChipText,
+    this.chatHistoryEnabled,
   });
 
   /// The title in the chat header.
@@ -225,6 +232,23 @@ class KerabieChatSettings {
   /// The organisation's guided flow opens the chat with this question and its buttons (a menu built in the dashboard).
   final KerabieGuidedGreeting? guidedGreeting;
 
+  /// The organisation's logo, shown in the Home header.
+  final String? logoUrl;
+
+  /// Show the Home / Chat / Help tab bar in the single layout too.
+  final bool? showNavigation;
+
+  /// The Home header greeting. `{{name}}` becomes the visitor's first name.
+  final bool? showGreeting;
+  final String? greetingText;
+
+  /// The "We reply in minutes" chip in the Home header.
+  final bool? showStatusChip;
+  final String? statusChipText;
+
+  /// Off hides past conversations: the Chat tab then only offers a new chat.
+  final bool? chatHistoryEnabled;
+
   /// These settings with every non-null field of [other] on top.
   KerabieChatSettings merge(KerabieChatSettings other) => KerabieChatSettings(
         name: other.name ?? name,
@@ -241,6 +265,13 @@ class KerabieChatSettings {
         customerEnrichmentEnabled: other.customerEnrichmentEnabled ?? customerEnrichmentEnabled,
         customerEnrichmentForm: other.customerEnrichmentForm ?? customerEnrichmentForm,
         guidedGreeting: other.guidedGreeting ?? guidedGreeting,
+        logoUrl: other.logoUrl ?? logoUrl,
+        showNavigation: other.showNavigation ?? showNavigation,
+        showGreeting: other.showGreeting ?? showGreeting,
+        greetingText: other.greetingText ?? greetingText,
+        showStatusChip: other.showStatusChip ?? showStatusChip,
+        statusChipText: other.statusChipText ?? statusChipText,
+        chatHistoryEnabled: other.chatHistoryEnabled ?? chatHistoryEnabled,
       );
 }
 
@@ -321,6 +352,13 @@ class KerabieSettings {
         customerEnrichmentEnabled: flag(s['customerEnrichmentEnabled']),
         customerEnrichmentForm: fields,
         guidedGreeting: KerabieGuidedGreeting.fromServer(s['guidedGreeting']),
+        logoUrl: url(s['logoUrl']),
+        showNavigation: flag(s['showNavigation']),
+        showGreeting: flag(s['showGreeting']),
+        greetingText: text(s['greetingText']),
+        showStatusChip: flag(s['showStatusChip']),
+        statusChipText: text(s['statusChipText']),
+        chatHistoryEnabled: flag(s['chatHistoryEnabled']),
       ),
       ticketsEnabled: s['ticketsEnabled'] == true,
       callsEnabled: s['callsEnabled'] == true,

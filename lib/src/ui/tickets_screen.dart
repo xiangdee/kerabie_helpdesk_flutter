@@ -436,7 +436,7 @@ class _KerabieTicketDetailScreenState extends State<KerabieTicketDetailScreen> {
                     onTap: widget.onClose ?? () => Navigator.of(context).maybePop(),
                     child: Padding(
                       padding: const EdgeInsets.all(10),
-                      child: Text('‹ Back', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: p.accent)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.chevron_left_rounded, size: 20, color: p.accent), Text('Back', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: p.accent))]),
                     ),
                   ),
                   const SizedBox(width: 10),

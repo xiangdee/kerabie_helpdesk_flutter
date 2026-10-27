@@ -4,7 +4,8 @@ Embed the [Kerabie](https://kerabie.com) help desk in a Flutter app: live chat, 
 
 - Real-time chat that lands in your Kerabie inbox, with history, typing indicators, read ticks, unread count and AI replies that stream in word by word
 - Photos and files (25 MB), an emoji picker, link previews, and links to the knowledge base articles an AI reply used
-- A floating button or a search bar, a settings menu (change name, email or share the transcript, download or erase the customer's data) and a pre-chat form for contact details
+- The same tabbed widget as the web chat: Home with articles and products, a list of conversations, Help with FAQs, and Tickets
+- A floating button or a search bar, a Help tab (email or share the transcript, download or erase the customer's data) and a pre-chat form for contact details
 - A help centre (searchable knowledge base with article feedback), a store and tickets
 - Campaigns: proactive messages from the dashboard, limited to screens, audiences and frequencies
 - Open the chat with context (an order, a product, a payment), set or clear the signed-in user, and tell Kerabie which screen the customer is on
@@ -94,7 +95,7 @@ The welcome message can use `{{name}}`, which becomes the signed-in user's first
 
 ### Open modes
 
-With `openMode: KerabieOpenMode.push` the SDK does not touch your navigator. It calls `onNavigate`, and your app shows a `KerabieChatScreen`:
+With `openMode: KerabieOpenMode.push` the SDK does not touch your navigator. It calls `onNavigate`, and your app shows a `KerabieWidget` (the whole widget) or a `KerabieChatScreen` (just the conversation):
 
 ```dart
 KerabieProvider(
@@ -104,7 +105,7 @@ KerabieProvider(
 )
 
 // In your /chat route:
-KerabieChatScreen(onClose: () => router.pop())
+KerabieWidget(onClose: () => router.pop())
 ```
 
 Without `onNavigate` the chat opens as a full-screen page.

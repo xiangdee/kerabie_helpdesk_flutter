@@ -149,7 +149,7 @@ class KerabieCampaignBanner extends StatelessWidget {
                           height: 24,
                           decoration: hasCover ? const BoxDecoration(shape: BoxShape.circle, color: Color(0x73000000)) : null,
                           alignment: Alignment.center,
-                          child: Text('✕', style: TextStyle(fontSize: hasCover ? 11 : 13, color: hasCover ? Colors.white : const Color(0xFF94A3B8))),
+                          child: Icon(Icons.close_rounded, size: hasCover ? 14 : 16, color: hasCover ? Colors.white : const Color(0xFF94A3B8)),
                         ),
                       ),
                     ),

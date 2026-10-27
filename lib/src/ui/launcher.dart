@@ -197,8 +197,8 @@ class _KerabieSearchBarState extends State<KerabieSearchBar> {
                   ),
                 if (_chooser)
                   note(Row(mainAxisSize: MainAxisSize.min, children: [
-                    TextButton(onPressed: () => _pick(controller, true), child: Text('🖼  Photo', style: TextStyle(color: palette.text))),
-                    TextButton(onPressed: () => _pick(controller, false), child: Text('📄  Document', style: TextStyle(color: palette.text))),
+                    TextButton(onPressed: () => _pick(controller, true), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.image_outlined, size: 18, color: palette.text), const SizedBox(width: 8), Text('Photo', style: TextStyle(color: palette.text))])),
+                    TextButton(onPressed: () => _pick(controller, false), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.description_outlined, size: 18, color: palette.text), const SizedBox(width: 8), Text('Document', style: TextStyle(color: palette.text))])),
                   ])),
                 if (staging.pending != null)
                   note(Row(mainAxisSize: MainAxisSize.min, children: [
@@ -208,7 +208,7 @@ class _KerabieSearchBarState extends State<KerabieSearchBar> {
                         child: Image(image: ResizeImage(FileImage(File(staging.pending!.path)), width: 96), width: 32, height: 32, fit: BoxFit.cover),
                       )
                     else
-                      const Text('📎', style: TextStyle(fontSize: 18)),
+                      Icon(Icons.attach_file_rounded, size: 20, color: palette.muted),
                     const SizedBox(width: 8),
                     Flexible(child: Text(staging.pending!.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: palette.text))),
                     const SizedBox(width: 8),

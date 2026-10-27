@@ -176,6 +176,9 @@ class KerabieController extends ChangeNotifier {
     await _loadHistory(replace: true);
     _orgId = await _loadSettings();
     if (_disposed) return;
+    // One continuous chat (single layout): the whole recent history, not just the latest conversation.
+    if (chat.layout == KerabieLayout.single && chat.chatHistoryEnabled != false) await _loadHistory(replace: true, all: true);
+    if (_disposed) return;
 
     final user = _user;
     if (user != null) unawaited(identify(user));
@@ -194,11 +197,11 @@ class KerabieController extends ChangeNotifier {
     );
   }
 
-  Future<void> _loadHistory({required bool replace, int? conversationId}) async {
+  Future<void> _loadHistory({required bool replace, int? conversationId, bool all = false}) async {
     try {
       final res = await _api!.get(
         '/public/widget/messages',
-        query: conversationId == null ? null : {'conversationId': '$conversationId'},
+        query: all ? {'all': '1'} : conversationId == null ? null : {'conversationId': '$conversationId'},
       );
       final raw = res['messages'];
       if (raw is! List) return;
@@ -252,7 +255,38 @@ class KerabieController extends ChangeNotifier {
       _notify();
     } on KerabieException {
       // Keep the list we have.
+    } finally {
+      if (!_conversationsLoaded) {
+        _conversationsLoaded = true;
+        _notify();
+      }
     }
+  }
+
+  bool _conversationsLoaded = false;
+
+  /// False until the first answer for [conversations] is in, so a screen shows placeholders rather than "no chats".
+  bool get conversationsLoaded => _conversationsLoaded;
+
+  /// Switches to an empty draft chat. The conversation is only created once the first message is sent.
+  void startNewConversation() {
+    _draftConversation = null;
+    _conversationId = null;
+    _messages.clear();
+    _isTyping = false;
+    _isAiTyping = false;
+    _notify();
+    unawaited(refreshGuidedGreeting());
+  }
+
+  /// Switches to one of [conversations] and loads its messages.
+  Future<void> openConversation(int id) async {
+    _draftConversation = null;
+    _conversationId = id;
+    _isTyping = false;
+    _isAiTyping = false;
+    _notify();
+    await _loadHistory(replace: true, conversationId: id);
   }
 
   // ─── Identity ─────────────────────────────────────────────────────────────────
@@ -344,7 +378,8 @@ class KerabieController extends ChangeNotifier {
   }
 
   void _openConversation(int id) {
-    if (id != _conversationId && _started) unawaited(_loadHistory(replace: true, conversationId: id));
+    // The single layout already holds every conversation in its one chat.
+    if (id != _conversationId && _started && chat.layout != KerabieLayout.single) unawaited(_loadHistory(replace: true, conversationId: id));
     showChat(route: KerabieRoute(KerabieRouteType.conversation, conversationId: id));
   }
 

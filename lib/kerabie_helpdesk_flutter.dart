@@ -49,4 +49,5 @@ export 'src/ui/navigator_observer.dart' show KerabieNavigatorObserver, kerabieCh
 export 'src/ui/palette.dart' show KerabiePalette;
 export 'src/ui/skeleton.dart' show KerabieSkeleton, KerabieSkeletonRows;
 export 'src/ui/store_screen.dart' show KerabieStoreScreen;
+export 'src/ui/widget_shell.dart' show KerabieWidget;
 export 'src/ui/tickets_screen.dart' show KerabieTicketDetailScreen, KerabieTicketsScreen, kerabieAgo, kerabieTicketStatusStyle;

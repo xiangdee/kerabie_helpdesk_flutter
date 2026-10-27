@@ -59,7 +59,7 @@ class KerabieMessageBubble extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: Image.network(url, fit: BoxFit.cover, errorBuilder: (_, __, ___) => fallback),
         );
-    final robot = disc(const Color(0xFF6366F1), const Text('🤖', style: TextStyle(fontSize: 12)));
+    final robot = disc(const Color(0xFF6366F1), const Icon(Icons.auto_awesome_rounded, size: 14, color: Colors.white));
     if (message.sender == KerabieSender.bot) {
       return botAvatarUrl == null ? robot : photo(botAvatarUrl!, robot);
     }
@@ -83,7 +83,7 @@ class KerabieMessageBubble extends StatelessWidget {
             onTap: () => openKerabieLink(url),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Text('📎 ${message.attachmentName ?? 'File'}', style: TextStyle(fontSize: 13, color: mine ? textColor : palette.text)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.attach_file_rounded, size: 14, color: mine ? textColor : palette.text), const SizedBox(width: 4), Flexible(child: Text(message.attachmentName ?? 'File', style: TextStyle(fontSize: 13, color: mine ? textColor : palette.text)))]),
             ),
           );
     return Padding(padding: EdgeInsets.only(bottom: message.body.isNotEmpty ? 6 : 0), child: child);
@@ -184,10 +184,10 @@ class KerabieMessageBubble extends StatelessWidget {
           child: Row(
             children: [
               Expanded(
-                child: Text('📄 ${cite.title}', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: textColor)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.description_outlined, size: 14, color: palette.accent), const SizedBox(width: 4), Flexible(child: Text(cite.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: textColor)))]),
               ),
               const SizedBox(width: 6),
-              Text('›', style: TextStyle(fontSize: 13, color: palette.muted)),
+              Icon(Icons.chevron_right_rounded, size: 16, color: palette.muted),
             ],
           ),
         ),

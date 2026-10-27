@@ -6,13 +6,14 @@ import 'controller.dart';
 
 @immutable
 class KerabieProduct {
-  const KerabieProduct({required this.id, required this.name, required this.price, required this.currency, this.imageUrl});
+  const KerabieProduct({required this.id, required this.name, required this.price, required this.currency, this.imageUrl, this.description});
 
   final int id;
   final String name;
   final double price;
   final String currency;
   final String? imageUrl;
+  final String? description;
 
   static KerabieProduct? fromServer(Object? raw) {
     if (raw is! Map || raw['id'] is! num) return null;
@@ -22,6 +23,7 @@ class KerabieProduct {
       price: (raw['price'] as num?)?.toDouble() ?? 0,
       currency: '${raw['currency'] ?? ''}',
       imageUrl: raw['imageUrl'] is String && (raw['imageUrl'] as String).isNotEmpty ? raw['imageUrl'] as String : null,
+      description: raw['description'] is String && (raw['description'] as String).trim().isNotEmpty ? raw['description'] as String : null,
     );
   }
 

@@ -99,7 +99,7 @@ class _KerabieInputBarState extends State<KerabieInputBar> {
             borderRadius: BorderRadius.circular(6),
             child: file.isImage
                 ? Image(image: ResizeImage(FileImage(File(file.path)), width: 96), width: 32, height: 32, fit: BoxFit.cover)
-                : Container(width: 32, height: 32, color: p.surfaceStrong, alignment: Alignment.center, child: const Text('📎', style: TextStyle(fontSize: 15))),
+                : Container(width: 32, height: 32, color: p.surfaceStrong, alignment: Alignment.center, child: Icon(Icons.attach_file_rounded, size: 16, color: p.muted)),
           ),
           const SizedBox(width: 8),
           Expanded(child: Text(file.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12.5, color: p.text))),
@@ -164,7 +164,7 @@ class _KerabieInputBarState extends State<KerabieInputBar> {
                       suffixIcon: IconButton(
                         tooltip: 'Emoji',
                         onPressed: widget.disabled ? null : () => setState(() => _showEmoji = !_showEmoji),
-                        icon: const Text('🙂', style: TextStyle(fontSize: 17)),
+                        icon: Icon(Icons.sentiment_satisfied_alt_rounded, size: 20, color: p.muted),
                       ),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(p.radius + 4), borderSide: BorderSide.none),
                     ),

@@ -1,3 +1,16 @@
+## 0.3.0
+
+- The chat now opens as the same tabbed widget as the web chat: **Home** (header with logo, status and greeting, search, featured products, suggested articles and an "Ask our AI / Chat with us" card), **Chat**, **Help** and **Tickets** (when the dashboard has them on).
+- Chat in the full layout lists the customer's conversations with a **New chat** button; the single layout opens straight on one continuous chat with the whole recent history, and shows the tabs only when "Show navigation" is on.
+- Help has the customer's data options and the most useful knowledge base articles as FAQs.
+- A tapped notification or `<scheme>://conversation/:id` link opens the widget on that conversation.
+- Tapping a featured product opens a sheet with its picture, price, description and a link to the store.
+- New controller members: `startNewConversation`, `openConversation`, `conversationsLoaded`. New `KerabieChatSettings` fields from the dashboard: `logoUrl`, `showNavigation`, `showGreeting`, `greetingText`, `showStatusChip`, `statusChipText`, `chatHistoryEnabled`.
+- New `KerabieWidget` is what `KerabieChat.show` presents; `KerabieChatScreen` is now just the conversation (with `onBack` and `embedded` for building your own navigation).
+- Real icons instead of emoji for attachments, the emoji button, articles, products and the AI avatar.
+- Breaking: the settings menu no longer has Change name (the app identifies the customer with `setUser`; anonymous visitors give their name in the pre-chat form), and the chat's settings gear is gone: settings live in the Help tab.
+- Breaking: in `openMode: push`, show a `KerabieWidget` (or `KerabieChatScreen`) in your own route.
+
 ## 0.2.1
 
 - Agents see whether the customer is on iOS or Android next to the app version.

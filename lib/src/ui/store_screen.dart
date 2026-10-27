@@ -99,8 +99,8 @@ class _KerabieStoreScreenState extends State<KerabieStoreScreen> {
                   child: ColoredBox(
                     color: palette.primary.withValues(alpha: 0.08),
                     child: product.imageUrl != null
-                        ? Image.network(product.imageUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const Center(child: Text('📦', style: TextStyle(fontSize: 24))))
-                        : const Center(child: Text('📦', style: TextStyle(fontSize: 24))),
+                        ? Image.network(product.imageUrl!, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Center(child: Icon(Icons.inventory_2_outlined, size: 26, color: palette.subtle)))
+                        : Center(child: Icon(Icons.inventory_2_outlined, size: 26, color: palette.subtle)),
                   ),
                 ),
               ),

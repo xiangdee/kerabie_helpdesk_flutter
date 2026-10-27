@@ -235,6 +235,7 @@ void main() {
     });
 
     test('a notification tap for another conversation loads that conversation', () async {
+      server.routes['GET /public/widget/init'] = {'orgId': 42, 'settings': {'name': 'Acme Support', 'layout': 'full'}};
       final c = makeController(realtime: realtime, server: server);
       await c.start();
       server.routes['GET /public/widget/messages'] = {
@@ -252,6 +253,75 @@ void main() {
       expect(server.last('GET', '/public/widget/messages')!.url.queryParameters['conversationId'], '9');
       expect(c.messages.single.body, 'About the refund');
       expect(c.conversationId, 9);
+      c.dispose();
+    });
+
+    test('in the single layout a notification tap does not replace the one continuous chat', () async {
+      final c = makeController(realtime: realtime, server: server);
+      await c.start();
+      var asked = 0;
+      server.routes['GET /public/widget/messages'] = {'conversationId': 9, 'messages': []};
+      c.presenter = (_) => asked++;
+      final before = server.requests.where((r) => r.url.path == '/public/widget/messages').length;
+
+      expect(c.handleNotificationData({'conversationId': 9}), isTrue);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(asked, 1);
+      expect(server.requests.where((r) => r.url.path == '/public/widget/messages').length, before);
+      c.dispose();
+    });
+
+    test('the single layout starts with the whole recent history', () async {
+      server.routes['GET /public/widget/messages'] = {'conversationId': 3, 'messages': [serverMessage(1, 'Earlier')]};
+      final c = makeController(realtime: realtime, server: server);
+      await c.start();
+
+      expect(server.requests.any((r) => r.url.path == '/public/widget/messages' && r.url.queryParameters['all'] == '1'), isTrue);
+      c.dispose();
+    });
+
+    test('with chat history off the single layout loads only the latest conversation', () async {
+      server.routes['GET /public/widget/init'] = {'orgId': 42, 'settings': {'layout': 'single', 'chatHistoryEnabled': false}};
+      final c = makeController(realtime: realtime, server: server);
+      await c.start();
+
+      expect(server.requests.any((r) => r.url.queryParameters['all'] == '1'), isFalse);
+      c.dispose();
+    });
+
+    test('a new conversation clears the chat; opening one loads its messages', () async {
+      server.routes['GET /public/widget/init'] = {'orgId': 42, 'settings': {'layout': 'full'}};
+      server.routes['GET /public/widget/messages'] = {'conversationId': 7, 'messages': [serverMessage(1, 'Mine')]};
+      final c = makeController(realtime: realtime, server: server);
+      await c.start();
+      expect(c.messages, hasLength(1));
+
+      c.startNewConversation();
+      expect(c.messages, isEmpty);
+      expect(c.conversationId, isNull);
+
+      server.routes['GET /public/widget/messages'] = {'conversationId': 4, 'messages': [serverMessage(9, 'Older chat', conversationId: 4)]};
+      await c.openConversation(4);
+      expect(c.conversationId, 4);
+      expect(c.messages.single.body, 'Older chat');
+      expect(server.last('GET', '/public/widget/messages')!.url.queryParameters['conversationId'], '4');
+      c.dispose();
+    });
+
+    test('the conversation list says when it has been loaded', () async {
+      server.routes['GET /public/widget/conversations'] = {
+        'conversations': [
+          {'id': 4, 'name': 'Ada', 'lastMessage': 'Hi', 'lastMessageTime': '2026-01-01T10:00:00Z', 'unreadCount': 0},
+        ],
+      };
+      final c = makeController(realtime: realtime, server: server);
+      await c.start();
+      expect(c.conversationsLoaded, isFalse);
+
+      await c.refreshConversations();
+      expect(c.conversationsLoaded, isTrue);
+      expect(c.conversations.single.name, 'Ada');
       c.dispose();
     });
 

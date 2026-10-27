@@ -37,6 +37,12 @@ void main() {
     server = FakeServer({
       'GET /public/widget/init': {'orgId': 42, 'settings': settings(settingsExtra ?? {})},
       'GET /public/widget/messages': {'conversationId': conversationId, 'messages': messages},
+      'GET /public/widget/conversations': {
+        'conversations': [
+          if (conversationId != null)
+            {'id': conversationId, 'name': 'Support Agent', 'lastMessage': 'Hello', 'lastMessageTime': DateTime.now().toIso8601String(), 'unreadCount': 0},
+        ],
+      },
       'POST /public/widget/identify': {'success': true},
       'POST /public/widget/context': {'success': true},
     });
@@ -82,8 +88,25 @@ void main() {
     return c;
   }
 
+  // A visitor with a conversation reaches it from the Chat tab's list; a new visitor starts one from Home.
   Future<void> openChat(WidgetTester tester) async {
     await tester.tap(find.byType(KerabieLauncherButton));
+    await tester.pumpAndSettle();
+    if (controller?.conversationId != null && find.text('Chat').evaluate().isNotEmpty) {
+      await tester.tap(find.text('Chat'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Support Agent'));
+      await tester.pumpAndSettle();
+      return;
+    }
+    await enterChat(tester);
+  }
+
+  // Settings live in the Help tab of the widget.
+  Future<void> openHelp(WidgetTester tester) async {
+    await tester.tap(find.byType(KerabieLauncherButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Help'));
     await tester.pumpAndSettle();
   }
 
@@ -109,13 +132,14 @@ void main() {
   });
 
   group('chat screen', () {
-    testWidgets('the header shows the connection, the agents online and the settings gear', (tester) async {
+    testWidgets('the header shows the agents online and a way back to the tabs, with settings in the Help tab', (tester) async {
       await boot(tester);
       await openChat(tester);
 
       expect(find.text('Acme Support'), findsOneWidget);
       expect(find.text('1 agent online'), findsOneWidget);
-      expect(find.byTooltip('Settings'), findsOneWidget);
+      expect(find.byTooltip('Back'), findsOneWidget);
+      expect(find.byTooltip('Settings'), findsNothing);
 
       realtime.emit('agents', {'count': 3});
       await tester.pump();
@@ -272,9 +296,9 @@ void main() {
 
       expect(find.text('Example page'), findsOneWidget);
       expect(find.text('Example'), findsOneWidget);
-      expect(find.text('📄 Refund policy'), findsOneWidget);
+      expect(find.text('Refund policy'), findsOneWidget);
 
-      await tester.tap(find.text('📄 Refund policy'));
+      await tester.tap(find.text('Refund policy'));
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pumpAndSettle();
       expect(find.textContaining('Refunds take', findRichText: true), findsOneWidget);
@@ -522,70 +546,29 @@ void main() {
   group('settings', () {
     testWidgets('the rows, and no transcript rows before there is a conversation', (tester) async {
       await boot(tester);
-      await openChat(tester);
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
+      await openHelp(tester);
 
-      expect(find.text('Settings'), findsOneWidget);
-      expect(find.text('Change Name'), findsOneWidget);
+      expect(find.text('Help & Settings'), findsOneWidget);
+      expect(find.text('Change Name'), findsNothing);
       expect(find.text('Download Transcript'), findsNothing);
       expect(find.text('Email Transcript'), findsNothing);
       expect(find.text('Download my data'), findsOneWidget);
       expect(find.text('Delete my data'), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Back'));
-      await tester.pumpAndSettle();
-      expect(find.text('Settings'), findsNothing);
     });
 
     testWidgets('the transcript rows appear once there is a conversation', (tester) async {
       serve(conversationId: 7, messages: [serverMessage(1, 'Hello')]);
       await boot(tester);
-      await openChat(tester);
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
+      await openHelp(tester);
       expect(find.text('Download Transcript'), findsOneWidget);
       expect(find.text('Email Transcript'), findsOneWidget);
-    });
-
-    testWidgets('changing the name tells the server and updates the visitor', (tester) async {
-      final c = await boot(tester);
-      await openChat(tester);
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Change Name'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).last, '  Ada Obi ');
-      await tester.tap(find.text('Save'));
-      await tester.pumpAndSettle();
-
-      expect(c.currentUser!.name, 'Ada Obi');
-      expect(find.text('✓ Saved!'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 4));
-      expect(find.text('✓ Saved!'), findsNothing);
-    });
-
-    testWidgets('an empty name is not saved', (tester) async {
-      final c = await boot(tester);
-      await openChat(tester);
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Change Name'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField).last, '   ');
-      await tester.tap(find.text('Save'));
-      await tester.pumpAndSettle();
-      expect(c.currentUser, isNull);
     });
 
     testWidgets('emailing the transcript checks the address first', (tester) async {
       serve(conversationId: 7, messages: [serverMessage(1, 'Hello')]);
       server.routes['POST /public/widget/conversations/7/export/email'] = {'success': true};
       await boot(tester);
-      await openChat(tester);
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
+      await openHelp(tester);
 
       await tester.tap(find.text('Email Transcript'));
       await tester.pumpAndSettle();
@@ -599,7 +582,7 @@ void main() {
       await tester.tap(find.text('Send'));
       await tester.pumpAndSettle();
       expect(jsonDecode(server.last('POST', '/public/widget/conversations/7/export/email')!.body), {'email': 'ada@example.com'});
-      expect(find.text('✓ Sent!'), findsOneWidget);
+      expect(find.text('Sent'), findsOneWidget);
       await tester.pump(const Duration(seconds: 4));
     });
 
@@ -607,9 +590,7 @@ void main() {
       serve(conversationId: 7, messages: [serverMessage(1, 'Hello')]);
       server.routes['POST /public/widget/conversations/7/export/email'] = (http.Request r) => json({'message': 'x'}, 500);
       await boot(tester);
-      await openChat(tester);
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
+      await openHelp(tester);
       await tester.tap(find.text('Email Transcript'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).last, 'ada@example.com');
@@ -621,9 +602,7 @@ void main() {
     testWidgets('downloading data when the server holds none says so', (tester) async {
       server.routes['GET /public/widget/my-data'] = {'profile': null, 'conversations': []};
       await boot(tester);
-      await openChat(tester);
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
+      await openHelp(tester);
       await tester.tap(find.text('Download my data'));
       await tester.pumpAndSettle();
       expect(find.text("We don't hold any data about you yet."), findsOneWidget);
@@ -633,9 +612,7 @@ void main() {
     testWidgets('deleting data asks first, then erases', (tester) async {
       server.routes['DELETE /public/widget/my-data'] = {'success': true};
       await boot(tester);
-      await openChat(tester);
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
+      await openHelp(tester);
 
       await tester.tap(find.text('Delete my data'));
       await tester.pumpAndSettle();
@@ -656,9 +633,7 @@ void main() {
     testWidgets('a failed delete says so and the data stays', (tester) async {
       server.routes['DELETE /public/widget/my-data'] = (http.Request r) => json({'message': 'x'}, 500);
       await boot(tester);
-      await openChat(tester);
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
+      await openHelp(tester);
       await tester.tap(find.text('Delete my data'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Yes, delete'));
@@ -846,7 +821,7 @@ void main() {
 
       await tester.tap(find.byTooltip('Send attachment'));
       await tester.pump();
-      await tester.tap(find.text('📄  Document'));
+      await tester.tap(find.text('Document'));
       await tester.pump();
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
       await tester.pump();
@@ -982,9 +957,174 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Reply →'), findsOneWidget);
 
-      await tester.tap(find.text('✕'));
+      await tester.tap(find.byIcon(Icons.close_rounded));
       await tester.pump();
       expect(find.text('Hello there'), findsNothing);
+    });
+  });
+
+  group('the tabbed widget', () {
+    Future<void> openWidget(WidgetTester tester) async {
+      await tester.tap(find.byType(KerabieLauncherButton));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('opens on Home: greeting, status, articles, products and the ask card', (tester) async {
+      server.routes['GET /public/kb/articles'] = {
+        'data': [
+          {'id': 1, 'title': 'Refunds', 'content': '<p>Body</p>'},
+        ],
+      };
+      server.routes['GET /public/store/by-widget'] = {
+        'store': {'name': 'Acme Shop', 'slug': 'acme'},
+        'products': [
+          {'id': 1, 'name': 'Sneakers', 'price': 45.5, 'currency': 'USD', 'description': 'Light and fast'},
+        ],
+      };
+      await boot(tester);
+      await openWidget(tester);
+
+      expect(find.textContaining('Hello there', findRichText: true), findsOneWidget);
+      expect(find.text('Instant answers'), findsOneWidget); // chatbot on in these settings
+      expect(find.text('SUGGESTED ARTICLES'), findsOneWidget);
+      expect(find.text('Refunds'), findsOneWidget);
+      expect(find.text('FEATURED PRODUCTS'), findsOneWidget);
+      expect(find.text('Sneakers'), findsOneWidget);
+      expect(find.text('Ask our AI'), findsOneWidget);
+      for (final tab in ['Home', 'Chat', 'Help']) {
+        expect(find.text(tab), findsOneWidget);
+      }
+      expect(find.text('Tickets'), findsNothing); // tickets are off unless the dashboard turns them on
+    });
+
+    testWidgets('the greeting and status chip come from the dashboard, with the first name filled in', (tester) async {
+      serve(settingsExtra: {'greetingText': 'Welcome {{name}}!', 'statusChipText': 'Back at 9am', 'showStatusChip': true});
+      await boot(tester, config: const KerabieConfig(widgetKey: 'wk_test', appName: 'a', appVersion: '1', user: KerabieUser(name: 'Ada Obi')));
+      await openWidget(tester);
+      expect(find.text('Welcome Ada!'), findsOneWidget);
+      expect(find.text('Back at 9am'), findsOneWidget);
+    });
+
+    testWidgets('showGreeting off and showStatusChip off hide them', (tester) async {
+      serve(settingsExtra: {'showGreeting': false, 'showStatusChip': false});
+      await boot(tester);
+      await openWidget(tester);
+      expect(find.textContaining('Hello there', findRichText: true), findsNothing);
+      expect(find.text('Instant answers'), findsNothing);
+    });
+
+    testWidgets('a product opens its sheet with the price, the description and a store button', (tester) async {
+      server.routes['GET /public/store/by-widget'] = {
+        'store': {'name': 'Acme Shop', 'slug': 'acme'},
+        'products': [
+          {'id': 1, 'name': 'Sneakers', 'price': 45.5, 'currency': 'USD', 'description': 'Light and fast'},
+        ],
+      };
+      await boot(tester);
+      await openWidget(tester);
+      await tester.tap(find.text('Sneakers'));
+      await tester.pumpAndSettle();
+      expect(find.text('Light and fast'), findsOneWidget);
+      expect(find.text(r'$45.50'), findsWidgets);
+      expect(find.text('View in store'), findsOneWidget);
+    });
+
+    testWidgets('searching the articles says when nothing matches', (tester) async {
+      server.routes['GET /public/kb/articles'] = (http.Request r) => json({
+            'data': r.url.queryParameters.containsKey('search')
+                ? []
+                : [
+                    {'id': 1, 'title': 'Refunds', 'content': '<p>x</p>'},
+                  ],
+          });
+      await boot(tester);
+      await openWidget(tester);
+      await tester.enterText(find.byType(TextField).first, 'zzz');
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpAndSettle();
+      expect(find.text('No articles match your search.'), findsOneWidget);
+    });
+
+    testWidgets('Chat lists the conversations; New chat starts an empty one', (tester) async {
+      serve(conversationId: 7, messages: [serverMessage(1, 'Hello')]);
+      final c = await boot(tester);
+      await openWidget(tester);
+      await tester.tap(find.text('Chat'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chats'), findsOneWidget);
+      expect(find.text('Support Agent'), findsOneWidget);
+      expect(find.text('New chat'), findsOneWidget);
+
+      await tester.tap(find.text('New chat'));
+      await tester.pumpAndSettle();
+      expect(c.messages, isEmpty);
+      expect(c.conversationId, isNull);
+    });
+
+    testWidgets('with no conversations Chat invites the visitor to start one', (tester) async {
+      await boot(tester);
+      await openWidget(tester);
+      await tester.tap(find.text('Chat'));
+      await tester.pumpAndSettle();
+      expect(find.text('Start a conversation'), findsOneWidget);
+      expect(find.text('Start chat'), findsOneWidget);
+    });
+
+    testWidgets('with chat history off the list is hidden', (tester) async {
+      serve(conversationId: 7, messages: [serverMessage(1, 'Hello')], settingsExtra: {'chatHistoryEnabled': false});
+      await boot(tester);
+      await openWidget(tester);
+      await tester.tap(find.text('Chat'));
+      await tester.pumpAndSettle();
+      expect(find.text('Support Agent'), findsNothing);
+      expect(find.text('Start a conversation'), findsOneWidget);
+    });
+
+    testWidgets('Help has the options and the articles as FAQs, without Change Name', (tester) async {
+      server.routes['GET /public/kb/articles'] = {
+        'data': [
+          {'id': 1, 'title': 'Refunds', 'content': '<p>x</p>'},
+        ],
+      };
+      await boot(tester);
+      await openWidget(tester);
+      await tester.tap(find.text('Help'));
+      await tester.pumpAndSettle();
+      expect(find.text('Help & Settings'), findsOneWidget);
+      expect(find.text('FREQUENTLY ASKED QUESTIONS'), findsOneWidget);
+      expect(find.text('Refunds'), findsOneWidget);
+      expect(find.text('Change Name'), findsNothing);
+    });
+
+    testWidgets('the Tickets tab shows when tickets are on', (tester) async {
+      serve(settingsExtra: {'ticketsEnabled': true});
+      await boot(tester);
+      await openWidget(tester);
+      expect(find.text('Tickets'), findsOneWidget);
+    });
+
+    testWidgets('the single layout opens straight on the chat, without tabs', (tester) async {
+      serve(settingsExtra: {'layout': 'single'});
+      await boot(tester);
+      await openWidget(tester);
+      expect(find.text('Home'), findsNothing);
+      expect(find.byTooltip('Back'), findsNothing);
+    });
+
+    testWidgets('the Ask card starts a fresh chat, and Back returns to the list', (tester) async {
+      serve(conversationId: 7, messages: [serverMessage(1, 'Hello')]);
+      final c = await boot(tester);
+      await openWidget(tester);
+      await tester.tap(find.text('Ask our AI'));
+      await tester.pumpAndSettle();
+      expect(c.messages, isEmpty);
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.text('Chats'), findsOneWidget);
     });
   });
 
@@ -1110,7 +1250,7 @@ void main() {
       expect(find.text('Sam'), findsOneWidget);
       expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
 
-      await tester.tap(find.text('‹ Back'));
+      await tester.tap(find.text('Back'));
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pumpAndSettle();
       expect(find.text('Broken'), findsOneWidget);

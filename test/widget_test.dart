@@ -38,6 +38,11 @@ void main() {
         'conversationId': 7,
         'messages': [serverMessage(1, 'Welcome back')],
       },
+      'GET /public/widget/conversations': {
+        'conversations': [
+          {'id': 7, 'name': 'Support Agent', 'lastMessage': 'Welcome back', 'lastMessageTime': '2026-01-01T10:00:00Z', 'unreadCount': 0},
+        ],
+      },
     });
     controller = makeController(realtime: realtime, server: server);
     await controller.start();
@@ -58,9 +63,14 @@ void main() {
 
     await tester.tap(find.byType(KerabieLauncherButton));
     await tester.pumpAndSettle();
+    // The visitor's existing conversation: Chat tab, then the row.
+    await tester.tap(find.text('Chat'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Support Agent'));
+    await tester.pumpAndSettle();
 
     expect(find.text('Acme Support'), findsOneWidget);
-    expect(find.text('New reply'), findsOneWidget);
+    expect(find.text('Welcome back'), findsOneWidget);
     expect(controller.isOpen, isTrue);
     expect(controller.unreadCount, 0);
   });
@@ -68,6 +78,11 @@ void main() {
   testWidgets('writing a message sends it and shows it as sending', (tester) async {
     await tester.pumpWidget(app());
     await tester.tap(find.byType(KerabieLauncherButton));
+    await tester.pumpAndSettle();
+    // Into the visitor's existing conversation (a fresh chat with nobody online asks for contact details first).
+    await tester.tap(find.text('Chat'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Support Agent'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField).first, 'Where is my order?');
@@ -86,6 +101,7 @@ void main() {
     await tester.pumpWidget(app());
     await tester.tap(find.byType(KerabieLauncherButton));
     await tester.pumpAndSettle();
+    await enterChat(tester);
 
     await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
@@ -129,6 +145,7 @@ void main() {
     );
     await tester.tap(find.byType(KerabieLauncherButton));
     await tester.pumpAndSettle();
+    await enterChat(tester);
 
     expect(find.text('Hi Ada, how can we help?'), findsOneWidget);
     fresh.dispose();
@@ -170,6 +187,7 @@ void main() {
     );
     await tester.tap(find.byType(KerabieLauncherButton));
     await tester.pumpAndSettle();
+    await enterChat(tester);
 
     expect(find.text('What would you like help with?'), findsOneWidget);
     expect(find.text('Hello'), findsNothing);
@@ -189,6 +207,7 @@ void main() {
     await tester.pumpWidget(app());
     await tester.tap(find.byType(KerabieLauncherButton));
     await tester.pumpAndSettle();
+    await enterChat(tester);
     expect(find.text('Yes please'), findsNothing);
 
     realtime.emit('message', {
@@ -239,6 +258,7 @@ void main() {
     );
     await tester.tap(find.byType(KerabieLauncherButton));
     await tester.pumpAndSettle();
+    await enterChat(tester);
 
     expect(find.text('Questions about pricing?'), findsOneWidget);
     expect(find.text('See plans'), findsOneWidget);
