@@ -7,6 +7,7 @@ import '../controller.dart';
 import '../guided.dart';
 import '../models.dart';
 import '../provider.dart';
+import 'article_card.dart';
 import 'dialog.dart';
 import 'guided_choices.dart';
 import 'image_viewer.dart';
@@ -147,6 +148,8 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
   }
 
   bool _draftBeingHandled = false;
+  int? _markedId;
+  int _markedCount = -1;
 
   void _onController() {
     final controller = _controller!;
@@ -159,6 +162,14 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
       _offlineTimer ??= Timer(const Duration(seconds: 3), () {
         if (mounted && !controller.isConnected) setState(() => _showOffline = true);
       });
+    }
+    // While this chat is on screen everything in it counts as read, including replies that arrive meanwhile.
+    final id = controller.conversationId;
+    final count = controller.messages.length;
+    if (id != null && (id != _markedId || count != _markedCount)) {
+      _markedId = id;
+      _markedCount = count;
+      controller.markConversationRead(id);
     }
     // Handed over by the search bar: the visitor already pressed send there, so the text goes out now, unless the
     // pre-chat form still has to collect their details, in which case it waits in the composer.
@@ -386,6 +397,13 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
           onRetry: () => controller.retry(message),
           onOpenImage: (url) => showKerabieImageViewer(context, url),
           onOpenArticle: (cite) => showKerabieArticleSheet(context, controller, palette, cite.id, cite.title),
+          citationBuilder: (cite) => KerabieArticleCard(
+            controller: controller,
+            citation: cite,
+            palette: palette,
+            onOpen: (article) => showKerabieArticleSheet(context, controller, palette, cite.id, article?.title ?? cite.title,
+                content: article?.content, imageUrl: article?.imageUrl),
+          ),
         );
       },
     );

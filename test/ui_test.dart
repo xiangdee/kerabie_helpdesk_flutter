@@ -276,6 +276,50 @@ void main() {
       expect(find.textContaining('Powered by'), findsNothing);
     });
 
+    testWidgets('a cited article is a card with its picture, the start of its text, and opens the article', (tester) async {
+      serve(conversationId: 7, messages: [
+        serverMessage(2, 'Here is the policy', metadata: {
+          'source': 'ai',
+          'articles': [
+            {'id': 3, 'title': 'Refund policy'},
+          ],
+        }),
+      ]);
+      server.routes['GET /public/kb/articles/3'] = {
+        'article': {'id': 3, 'title': 'Refund policy', 'content': '<p>Refunds&nbsp;take&nbsp;<b>5 days</b> to arrive.</p>', 'imageUrl': null},
+      };
+      await boot(tester);
+      await openChat(tester);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump();
+
+      expect(find.text('Refund policy'), findsOneWidget);
+      expect(find.text('Refunds take 5 days to arrive.'), findsOneWidget); // the card's excerpt, entities decoded
+      expect(find.text('Help article'), findsOneWidget);
+
+      await tester.tap(find.text('Refund policy'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Refunds', findRichText: true), findsWidgets);
+      // The card and the sheet share one request for the article.
+      expect(server.requests.where((r) => r.url.path == '/public/kb/articles/3').length, 1);
+    });
+
+    testWidgets('viewing a conversation tells the server it has been read, and again for each new message', (tester) async {
+      serve(conversationId: 7, messages: [serverMessage(1, 'Hello')]);
+      server.routes['POST /public/widget/conversations/7/read'] = {'success': true};
+      await boot(tester);
+      await openChat(tester);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+
+      int reads() => server.requests.where((r) => r.method == 'POST' && r.url.path == '/public/widget/conversations/7/read').length;
+      expect(reads(), 1);
+
+      realtime.emit('message', serverMessage(2, 'A reply while you are looking'));
+      await tester.pump();
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      expect(reads(), 2);
+    });
+
     testWidgets('an incoming message with a link preview and a knowledge base citation', (tester) async {
       serve(conversationId: 7, messages: [
         {
@@ -301,7 +345,8 @@ void main() {
       await tester.tap(find.text('Refund policy'));
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Refunds take', findRichText: true), findsOneWidget);
+      // The card's excerpt and the article body in the sheet.
+      expect(find.textContaining('Refunds take', findRichText: true), findsWidgets);
       expect(find.text('Was this helpful?'), findsOneWidget);
     });
 

@@ -7,6 +7,7 @@ import 'attachments.dart';
 import 'config.dart';
 import 'deep_link.dart';
 import 'guided.dart';
+import 'knowledge_base.dart';
 import 'models.dart';
 import 'realtime.dart';
 import 'storage.dart';
@@ -267,6 +268,45 @@ class KerabieController extends ChangeNotifier {
 
   /// False until the first answer for [conversations] is in, so a screen shows placeholders rather than "no chats".
   bool get conversationsLoaded => _conversationsLoaded;
+
+  final _articles = <int, Future<KerabieArticle?>>{};
+
+  /// A knowledge base article by id, fetched once per session (the same article can be cited on several messages). A
+  /// failed fetch is asked for again next time.
+  Future<KerabieArticle?> loadArticle(int id) {
+    return _articles.putIfAbsent(id, () async {
+      final article = await KerabieKnowledgeBase.fetchArticle(this, id);
+      if (article == null) _articles.remove(id);
+      return article;
+    });
+  }
+
+  /// The visitor is looking at this conversation: what the team said so far no longer counts as unread.
+  void markConversationRead(int id) {
+    // Fire and forget: the badge is a nicety and must never get in the way of reading.
+    unawaited(_api?.post('/public/widget/conversations/$id/read', const {}).then((_) {}, onError: (_) {}) ?? Future<void>.value());
+    final index = _conversations.indexWhere((c) => c.id == id && c.unreadCount > 0);
+    if (index != -1) {
+      final c = _conversations[index];
+      _conversations = [
+        for (var i = 0; i < _conversations.length; i++)
+          if (i == index)
+            KerabieConversation(
+              id: c.id,
+              name: c.name,
+              avatar: c.avatar,
+              lastMessage: c.lastMessage,
+              lastMessageTime: c.lastMessageTime,
+              unreadCount: 0,
+              isOnline: c.isOnline,
+              status: c.status,
+            )
+          else
+            _conversations[i],
+      ];
+      _notify();
+    }
+  }
 
   /// Switches to an empty draft chat. The conversation is only created once the first message is sent.
   void startNewConversation() {

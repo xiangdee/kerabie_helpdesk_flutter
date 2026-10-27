@@ -1,3 +1,9 @@
+## 0.3.1
+
+- An article an AI reply cites is now a tappable card like a link preview: the article's picture, its title and the start of its text. The article is fetched once per session.
+- The unread count in the conversation list is now right: a conversation counts as read while the customer has it open, and only replies from the team or the AI that came in after that are unread. Needs the matching Kerabie server update (`POST /public/widget/conversations/:id/read`).
+- New `controller.markConversationRead(id)`, `controller.loadArticle(id)` and `kerabieArticleExcerpt`.
+
 ## 0.3.0
 
 - The chat now opens as the same tabbed widget as the web chat: **Home** (header with logo, status and greeting, search, featured products, suggested articles and an "Ask our AI / Chat with us" card), **Chat**, **Help** and **Tickets** (when the dashboard has them on).

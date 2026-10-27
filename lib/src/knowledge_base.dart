@@ -28,6 +28,23 @@ class KerabieArticle {
   }
 }
 
+/// The start of an article's text for a card: tags dropped, entities decoded, whitespace collapsed.
+String kerabieArticleExcerpt(String html, {int max = 140}) {
+  var text = html.replaceAll(RegExp(r'<(script|style)[^>]*>[\s\S]*?</\1>', caseSensitive: false), ' ').replaceAll(RegExp(r'<[^>]+>'), ' ');
+  // Twice: crawled and pasted content is often encoded twice (&amp;nbsp;).
+  for (var i = 0; i < 2; i++) {
+    text = text
+        .replaceAll(RegExp(r'&nbsp;', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'&lt;', caseSensitive: false), '<')
+        .replaceAll(RegExp(r'&gt;', caseSensitive: false), '>')
+        .replaceAll(RegExp(r'&quot;', caseSensitive: false), '"')
+        .replaceAll(RegExp(r'&(#39|apos);', caseSensitive: false), "'")
+        .replaceAll(RegExp(r'&amp;', caseSensitive: false), '&');
+  }
+  text = text.replaceAll(RegExp(r'[\s\u00A0]+'), ' ').trim();
+  return text.length > max ? '${text.substring(0, max).trimRight()}...' : text;
+}
+
 /// The searchable knowledge base: the published articles of this widget's organisation, with a debounced search.
 /// Articles are remembered on the device, so the list shows at once next time and refreshes behind it.
 class KerabieKnowledgeBase extends ChangeNotifier {

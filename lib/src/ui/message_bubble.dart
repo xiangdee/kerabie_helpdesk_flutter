@@ -25,6 +25,7 @@ class KerabieMessageBubble extends StatelessWidget {
     this.botAvatarUrl,
     this.onOpenImage,
     this.onOpenArticle,
+    this.citationBuilder,
   });
 
   final KerabieMessage message;
@@ -41,6 +42,9 @@ class KerabieMessageBubble extends StatelessWidget {
 
   /// Called when a knowledge base article under an AI reply is tapped.
   final ValueChanged<KerabieCitation>? onOpenArticle;
+
+  /// Draws the article an AI reply cites as a card. Without it a one-line chip is shown.
+  final Widget Function(KerabieCitation citation)? citationBuilder;
 
   Widget _avatar() {
     Widget disc(Color color, Widget child) => Container(
@@ -169,6 +173,7 @@ class KerabieMessageBubble extends StatelessWidget {
   }
 
   Widget _citation(KerabieCitation cite, Color textColor) {
+    if (citationBuilder != null) return citationBuilder!(cite);
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: InkWell(
