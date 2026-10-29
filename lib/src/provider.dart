@@ -23,6 +23,7 @@ class KerabieProvider extends StatefulWidget {
     this.onOpenChat,
     this.onCloseChat,
     this.onOpenKnowledgeBase,
+    this.callActions,
   });
 
   final KerabieConfig config;
@@ -43,6 +44,10 @@ class KerabieProvider extends StatefulWidget {
   /// A campaign button can open your knowledge base. Chat has no fixed screen for it, so the app decides where it
   /// goes, for example to a [KerabieKnowledgeBaseScreen]. Without this the chat opens instead.
   final VoidCallback? onOpenKnowledgeBase;
+
+  /// Shown in the chat header, next to Settings. Pass `KerabieCallButton.icon()` from `kerabie_helpdesk_flutter_calls`
+  /// to put call buttons in the chat. It is a widget you pass in, so this package never carries the call code.
+  final Widget? callActions;
 
   /// The controller, rebuilding the caller when the chat changes. Pass `listen: false` from callbacks.
   static KerabieController of(BuildContext context, {bool listen = true}) {
@@ -89,7 +94,8 @@ class _KerabieProviderState extends State<KerabieProvider> {
       ..onNavigate = widget.onNavigate
       ..onOpenChat = widget.onOpenChat
       ..onCloseChat = widget.onCloseChat
-      ..onOpenKnowledgeBase = widget.onOpenKnowledgeBase;
+      ..onOpenKnowledgeBase = widget.onOpenKnowledgeBase
+      ..callActions = widget.callActions;
   }
 
   /// The navigator does not exist until the app below has built, so wait for it: the banner needs its overlay, and

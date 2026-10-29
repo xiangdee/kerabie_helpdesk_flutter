@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show Widget;
 
 import 'api_client.dart';
 import 'attachments.dart';
@@ -109,6 +110,9 @@ class KerabieController extends ChangeNotifier {
 
   /// A campaign button can open your knowledge base. Chat has no fixed screen for it, so the app decides where it goes.
   VoidCallback? onOpenKnowledgeBase;
+
+  /// Shown in the chat header, set by [KerabieProvider.callActions].
+  Widget? callActions;
 
   /// Runs when the visitor sends a message. Campaigns use it to count a reply.
   VoidCallback? onVisitorMessage;

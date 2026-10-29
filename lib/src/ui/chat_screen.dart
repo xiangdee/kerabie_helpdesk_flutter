@@ -6,6 +6,7 @@ import '../config.dart';
 import '../controller.dart';
 import '../guided.dart';
 import '../models.dart';
+import '../pre_chat.dart';
 import '../provider.dart';
 import 'article_card.dart';
 import 'dialog.dart';
@@ -21,11 +22,6 @@ import 'palette.dart';
 import 'pre_chat_form.dart';
 import 'settings_screen.dart';
 import 'widget_shell.dart';
-
-const _defaultPreChatFields = [
-  KerabieEnrichmentField(key: 'name', label: 'Your name', placeholder: 'Your name'),
-  KerabieEnrichmentField(key: 'email', label: 'Email address', type: 'email', placeholder: 'Email address'),
-];
 
 /// `{{name}}` becomes the visitor's first name. With no known name the token and the space before it are dropped
 /// ("Hi {{name}} 👋" becomes "Hi 👋").
@@ -191,36 +187,8 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
 
   bool _isOfflineNoBot(KerabieController c) => (c.agentsOnline ?? 0) == 0 && c.chat.chatbotEnabled != true;
 
-  List<KerabieEnrichmentField> _preChatFields(KerabieController c) {
-    final custom = c.chat.customerEnrichmentEnabled == true ? c.chat.customerEnrichmentForm ?? const [] : const <KerabieEnrichmentField>[];
-    return custom.isNotEmpty ? custom : _defaultPreChatFields;
-  }
-
   bool _showPreChat(KerabieController c) {
-    final user = c.currentUser;
-    final answered = (user?.name?.isNotEmpty ?? false) || (user?.email?.isNotEmpty ?? false) || (user?.customAttributes.isNotEmpty ?? false);
-    return (c.chat.customerEnrichmentEnabled == true || _isOfflineNoBot(c)) && !answered && c.messages.isEmpty;
-  }
-
-  void _submitPreChat(KerabieController c, Map<String, String> answers) {
-    // name, email and phone are the contact's own fields; every other answer is a custom attribute.
-    var user = c.currentUser ?? const KerabieUser();
-    final custom = {...user.customAttributes};
-    for (final f in _preChatFields(c)) {
-      final v = (answers[f.key] ?? '').trim();
-      if (v.isEmpty) continue;
-      switch (f.key) {
-        case 'name':
-          user = user.copyWith(name: v);
-        case 'email':
-          user = user.copyWith(email: v);
-        case 'phone':
-          user = user.copyWith(phone: v);
-        default:
-          custom[f.key] = v;
-      }
-    }
-    c.setUser(user.copyWith(customAttributes: custom));
+    return (c.chat.customerEnrichmentEnabled == true || _isOfflineNoBot(c)) && !c.hasAnsweredPreChat && c.messages.isEmpty;
   }
 
   void _onChanged(String text, KerabieController controller) {
@@ -321,6 +289,7 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
                   ],
                 ),
               ),
+              if (!_showSettings && controller.callActions != null) controller.callActions!,
               if (!_showSettings && menu)
                 IconButton(
                   tooltip: 'Settings',
@@ -417,7 +386,7 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
     final staging = controller.staging;
     final preChat = _showPreChat(controller);
     final offlineNoBot = _isOfflineNoBot(controller);
-    final fields = _preChatFields(controller);
+    final fields = controller.preChatFields;
     // Guided flow buttons: the greeting's, or those on the latest bot message until the visitor answers it.
     final guided = kerabieActiveChoices(controller.messages, controller.guidedGreeting, greetingAllowed: !preChat);
 
@@ -447,10 +416,10 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
                 title: offlineNoBot ? "We're offline right now" : 'Before we start',
                 subtitle: offlineNoBot ? "Leave your details and we'll get back to you" : 'Share your details so we can follow up',
                 submitLabel: offlineNoBot ? 'Send' : 'Start chat',
-                requireContact: identical(fields, _defaultPreChatFields),
+                requireContact: identical(fields, kerabieDefaultPreChatFields),
                 initial: {'name': controller.currentUser?.name ?? '', 'email': controller.currentUser?.email ?? ''},
                 palette: palette,
-                onSubmit: (answers) => _submitPreChat(controller, answers),
+                onSubmit: controller.submitPreChat,
               ),
             if (controller.isTyping && chat.typingIndicator != false)
               controller.isAiTyping ? KerabieAiOrb(palette: palette) : KerabieTypingDots(palette: palette),

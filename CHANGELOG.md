@@ -1,3 +1,8 @@
+## 0.4.0
+
+- `KerabieProvider(callActions: ...)` shows a widget in the chat header, next to settings. Pass `KerabieCallButton.icon()` from `kerabie_helpdesk_flutter_calls` to put call buttons in the chat. It is a widget you pass in, so this package never carries the call code.
+- The pre-chat form logic is now shared with calls: a new `KerabiePreChat` extension on `KerabieController` (`preChatFields`, `hasAnsweredPreChat`, `needsPreChatDetails`, `submitPreChat`), `kerabieDefaultPreChatFields`, and `KerabiePreChatForm` is exported. A call asks the same questions as the chat when the organisation has the form on and the customer is not identified.
+
 ## 0.3.1
 
 - An article an AI reply cites is now a tappable card like a link preview: the article's picture, its title and the start of its text. The article is fetched once per session.

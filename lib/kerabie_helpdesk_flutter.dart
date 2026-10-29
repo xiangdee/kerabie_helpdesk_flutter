@@ -38,6 +38,7 @@ export 'src/models.dart'
         KerabiePickedFile,
         KerabieSender,
         KerabieUser;
+export 'src/pre_chat.dart' show KerabiePreChat, kerabieDefaultPreChatFields;
 export 'src/provider.dart' show KerabieProvider, KerabieScope;
 export 'src/store.dart' show KerabieProduct, KerabieStore;
 export 'src/tickets.dart' show KerabieTicket, KerabieTicketMessage, KerabieTicketPriority, KerabieTicketThread, KerabieTickets;
@@ -45,6 +46,7 @@ export 'src/ui/chat_screen.dart' show KerabieChat, KerabieChatScreen, kerabiePer
 export 'src/ui/knowledge_base_screen.dart' show KerabieKnowledgeBaseScreen;
 export 'src/ui/launcher.dart' show KerabieLauncher, KerabieLauncherButton, KerabieSearchBar;
 export 'src/ui/message_bubble.dart' show KerabieMessageBubble;
+export 'src/ui/pre_chat_form.dart' show KerabiePreChatForm;
 export 'src/ui/navigator_observer.dart' show KerabieNavigatorObserver, kerabieChatRouteName;
 export 'src/ui/palette.dart' show KerabiePalette;
 export 'src/ui/skeleton.dart' show KerabieSkeleton, KerabieSkeletonRows;

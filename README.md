@@ -237,7 +237,7 @@ if (kerabie.handleDeepLink(Uri.parse('myapp://conversation/123'))) return;
 
 ## Voice and video calls
 
-Calls are an optional package, so apps that only want chat do not carry the call code: [`kerabie_helpdesk_flutter_calls`](https://pub.dev/packages/kerabie_helpdesk_flutter_calls).
+Pass `callActions: const KerabieCallButton.icon()` to `KerabieProvider` to put call buttons in the chat header. Calls are an optional package, so apps that only want chat do not carry the call code: [`kerabie_helpdesk_flutter_calls`](https://pub.dev/packages/kerabie_helpdesk_flutter_calls).
 
 ## Links
 
