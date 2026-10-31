@@ -438,10 +438,19 @@ class KerabieController extends ChangeNotifier {
 
   /// Starts a call. A visitor who already has one is put back into it. Throws [KerabieException] when calls are off,
   /// the plan has no minutes left or the visitor is starting too many.
-  Future<KerabieCallJoin> startCall({bool video = false}) async {
+  ///
+  /// For the AI agent, [userToken] is the signed-in customer's token (kept encrypted for the call and sent to your tools as
+  /// `X-Kerabie-User-Token`), [uiTools] the screens the app can show and [appActions] what the app can do on the device
+  /// (each `{name, description, parameters?}`).
+  Future<KerabieCallJoin> startCall({bool video = false, String? userToken, List<String> uiTools = const [], List<Map<String, dynamic>> appActions = const []}) async {
     final api = _api;
     if (api == null) throw KerabieException('The chat has not started yet.');
-    final res = await api.post('/public/widget/calls', {'video': video && _settings.videoCallsEnabled});
+    final res = await api.post('/public/widget/calls', {
+      'video': video && _settings.videoCallsEnabled,
+      if (userToken != null && userToken.isNotEmpty) 'userToken': userToken,
+      if (uiTools.isNotEmpty) 'uiTools': uiTools,
+      if (appActions.isNotEmpty) 'appActions': appActions,
+    });
     return KerabieCallJoin.fromServer(res);
   }
 

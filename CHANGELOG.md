@@ -1,3 +1,7 @@
+## 0.5.0
+
+- `KerabieController.startCall` takes `userToken` (the signed-in customer's token) and `uiTools` (the screens the app can show) for the AI agent in `kerabie_helpdesk_flutter_calls` 0.3.0. Kerabie keeps the token encrypted for the length of the call and sends it to your tools as `X-Kerabie-User-Token`; it is never shown to the AI.
+
 ## 0.4.0
 
 - `KerabieProvider(callActions: ...)` shows a widget in the chat header, next to settings. Pass `KerabieCallButton.icon()` from `kerabie_helpdesk_flutter_calls` to put call buttons in the chat. It is a widget you pass in, so this package never carries the call code.
