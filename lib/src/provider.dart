@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'agent.dart';
 import 'ui/agent_screens.dart';
 import 'package:flutter/widgets.dart';
@@ -5,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'campaigns.dart';
 import 'config.dart';
 import 'controller.dart';
+import 'models.dart';
 import 'ui/campaign_banner.dart';
 import 'ui/chat_screen.dart';
 import 'ui/links.dart';
@@ -97,6 +100,18 @@ class _KerabieProviderState extends State<KerabieProvider> {
   void didUpdateWidget(KerabieProvider old) {
     super.didUpdateWidget(old);
     _syncCallbacks();
+    _syncUser(old.config.user, widget.config.user);
+  }
+
+  /// The user in [KerabieConfig] is followed after the first build: signing in gives the person's name to the team, and
+  /// signing out forgets it.
+  void _syncUser(KerabieUser? before, KerabieUser? after) {
+    if (jsonEncode(before?.toJson()) == jsonEncode(after?.toJson())) return;
+    if (after != null) {
+      unawaited(_controller.setUser(after));
+    } else {
+      unawaited(_controller.clearUser());
+    }
   }
 
   void _syncCallbacks() {

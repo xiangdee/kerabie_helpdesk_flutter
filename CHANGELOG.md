@@ -1,3 +1,7 @@
+## 0.5.1
+
+- The user in `KerabieConfig` is followed after the first build. Before, a user who arrived later (the app loads the signed-in person after `KerabieProvider` was built) never reached the team, so the conversation showed "Visitor". Now a changed user is identified, and a user that becomes null is cleared.
+
 ## 0.5.0
 
 - The AI agent in the chat: `KerabieProvider(agent: KerabieAgentOptions(...))`. Every message carries the signed-in customer's token (`getUserToken`), and the AI can ask your app to show a screen (a list, a confirmation and an address box are built in; add your own in `screens`) or run an action (`actions`, for example adding to your own cart). Needs the same `navigatorKey` as your `MaterialApp`. Without `agent` the chat is unchanged. `KerabieAgentOptions`, `KerabieAgentAction` and `KerabieScreenHandler` now live here, so the chat agent needs no call code.
