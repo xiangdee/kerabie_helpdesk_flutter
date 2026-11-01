@@ -1,3 +1,7 @@
+## 0.6.0
+
+- `openWithContext` opens a new chat directly (not the Home screen) with what the customer was looking at already in the message box: `I need help with <title> (ref <id>).` and the first six simple values of `data`. The customer adds what went wrong and sends it. Give your own wording with `KerabieChatContext(message: ...)`. It also opens the chat when the session is not ready yet, and still tells the agent when it is.
+
 ## 0.5.1
 
 - The user in `KerabieConfig` is followed after the first build. Before, a user who arrived later (the app loads the signed-in person after `KerabieProvider` was built) never reached the team, so the conversation showed "Visitor". Now a changed user is identified, and a user that becomes null is cleared.

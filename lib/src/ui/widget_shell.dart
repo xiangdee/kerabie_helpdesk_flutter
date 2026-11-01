@@ -44,7 +44,7 @@ class _KerabieWidgetState extends State<KerabieWidget> {
     _controller?.removeListener(_onController);
     _controller = controller..addListener(_onController);
     final single = controller.chat.layout == KerabieLayout.single;
-    final toChat = single || controller.chatDraft != null || widget.initialRoute.type == KerabieRouteType.conversation;
+    final toChat = single || controller.chatDraft != null || controller.chatPrefill != null || widget.initialRoute.type == KerabieRouteType.conversation;
     _tab = toChat ? KerabieTab.chat : KerabieTab.home;
     _chatOpen = toChat;
     WidgetsBinding.instance.addPostFrameCallback((_) => controller.open());
@@ -59,10 +59,10 @@ class _KerabieWidgetState extends State<KerabieWidget> {
     super.dispose();
   }
 
-  // A search-bar draft goes straight to a chat.
+  // A search-bar draft, or a "get help with this" tap, goes straight to a chat.
   void _onController() {
     final controller = _controller!;
-    if (controller.chatDraft != null && (_tab != KerabieTab.chat || !_chatOpen) && mounted) {
+    if ((controller.chatDraft != null || controller.chatPrefill != null) && (_tab != KerabieTab.chat || !_chatOpen) && mounted) {
       setState(() {
         _tab = KerabieTab.chat;
         _chatOpen = true;

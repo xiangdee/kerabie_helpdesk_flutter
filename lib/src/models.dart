@@ -156,7 +156,7 @@ class KerabieConversation {
 /// What the customer was looking at when they asked for help, so agents do not have to ask.
 @immutable
 class KerabieChatContext {
-  const KerabieChatContext({required this.type, this.id, this.title, this.data, this.openChat = true});
+  const KerabieChatContext({required this.type, this.id, this.title, this.data, this.openChat = true, this.message});
 
   /// `order`, `product`, `transaction`, `ride`, `errand`, `booking` or `custom`.
   final String type;
@@ -172,6 +172,10 @@ class KerabieChatContext {
 
   /// Set false to only record the context and open the chat later.
   final bool openChat;
+
+  /// Text for the message box of the new chat that opens. Default: what it is about and its main details, built from
+  /// the fields above.
+  final String? message;
 }
 
 /// A call, and the pass that lets the app join its LiveKit room. The optional `kerabie_helpdesk_flutter_calls`

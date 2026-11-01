@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart' show Widget;
 import 'api_client.dart';
 import 'attachments.dart';
 import 'config.dart';
+import 'context_message.dart';
 import 'deep_link.dart';
 import 'guided.dart';
 import 'knowledge_base.dart';
@@ -89,6 +90,7 @@ class KerabieController extends ChangeNotifier {
   String _appVersion;
   List<KerabieConversation> _conversations = const [];
   String? _chatDraft;
+  String? _chatPrefill;
   bool _isConnected = false;
   bool _isOpen = false;
   bool _isTyping = false;
@@ -161,6 +163,9 @@ class KerabieController extends ChangeNotifier {
 
   /// Text typed into the search bar, waiting for the chat screen to send it.
   String? get chatDraft => _chatDraft;
+
+  /// Text a "get help with this" tap leaves in the message box of the new chat, for the customer to add to and send.
+  String? get chatPrefill => _chatPrefill;
 
   /// The screen the app reported with [trackScreen], as a path such as `/checkout`.
   String? get screen => _screen;
@@ -548,19 +553,31 @@ class KerabieController extends ChangeNotifier {
     _notify();
   }
 
-  /// Opens the chat and tells the agent what the customer was looking at: an order, a product, a payment.
-  /// Set [KerabieChatContext.openChat] to false to only record it.
+  void clearChatPrefill() {
+    if (_chatPrefill == null) return;
+    _chatPrefill = null;
+    _notify();
+  }
+
+  /// Opens a new chat directly (the single layout has just the one) with what the customer was looking at, an order, a
+  /// product, a payment, already in the message box, and tells the agent the same. Set [KerabieChatContext.openChat] to
+  /// false to only record it.
   void openWithContext(KerabieChatContext context) {
     final api = _api;
-    if (api == null) return;
     // Fire and forget: a failed report must not stop the chat from opening.
-    unawaited(api.post('/public/widget/context', {
-      'contextType': context.type,
-      'contextId': context.id,
-      'contextTitle': context.title,
-      'contextData': context.data,
-    }).then((_) {}, onError: (_) {}));
-    if (context.openChat) showChat();
+    if (api != null) {
+      unawaited(api.post('/public/widget/context', {
+        'contextType': context.type,
+        'contextId': context.id,
+        'contextTitle': context.title,
+        'contextData': context.data,
+      }).then((_) {}, onError: (_) {}));
+    }
+    if (!context.openChat) return;
+    if (chat.layout != KerabieLayout.single) startNewConversation();
+    _chatPrefill = kerabieContextMessage(context);
+    _notify();
+    showChat();
   }
 
   // ─── Screens ──────────────────────────────────────────────────────────────────

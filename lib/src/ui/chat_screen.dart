@@ -169,6 +169,15 @@ class _KerabieChatScreenState extends State<KerabieChatScreen> {
     }
     // Handed over by the search bar: the visitor already pressed send there, so the text goes out now, unless the
     // pre-chat form still has to collect their details, in which case it waits in the composer.
+    // A "get help with this" tap: what it is about waits in the message box for the customer to add to and send.
+    final prefill = controller.chatPrefill;
+    if (prefill != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _input.text = prefill;
+        controller.clearChatPrefill();
+      });
+    }
     final draft = controller.chatDraft;
     if (draft != null && !_draftBeingHandled) {
       _draftBeingHandled = true;
