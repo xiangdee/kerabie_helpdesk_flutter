@@ -1,3 +1,7 @@
+## 0.6.1
+
+- A session belongs to one person. When someone else signs in after a signed-in person, or nobody does, the session, conversations and connection start again, so the new person never sees the earlier one conversations and the earlier contact is not renamed. Anonymous to signed in keeps the session.
+
 ## 0.6.0
 
 - `openWithContext` opens a new chat directly (not the Home screen) with what the customer was looking at already in the message box: `I need help with <title> (ref <id>).` and the first six simple values of `data`. The customer adds what went wrong and sends it. Give your own wording with `KerabieChatContext(message: ...)`. It also opens the chat when the session is not ready yet, and still tells the agent when it is.
