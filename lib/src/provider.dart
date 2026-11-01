@@ -8,6 +8,7 @@ import 'campaigns.dart';
 import 'config.dart';
 import 'controller.dart';
 import 'models.dart';
+import 'person.dart';
 import 'ui/campaign_banner.dart';
 import 'ui/chat_screen.dart';
 import 'ui/links.dart';
@@ -104,14 +105,20 @@ class _KerabieProviderState extends State<KerabieProvider> {
   }
 
   /// The user in [KerabieConfig] is followed after the first build: signing in gives the person's name to the team, and
-  /// signing out forgets it.
+  /// signing out forgets it. A session belongs to one person: when someone else signs in after a signed-in person (or
+  /// nobody does), the session, the conversations and the connection are started again, so nothing carries over.
   void _syncUser(KerabieUser? before, KerabieUser? after) {
     if (jsonEncode(before?.toJson()) == jsonEncode(after?.toJson())) return;
-    if (after != null) {
-      unawaited(_controller.setUser(after));
-    } else {
-      unawaited(_controller.clearUser());
-    }
+    final before0 = kerabiePersonOf(before);
+    final switched = before0.isNotEmpty && before0 != kerabiePersonOf(after);
+    unawaited(() async {
+      if (switched) await _controller.clearUser();
+      if (after != null) {
+        await _controller.setUser(after);
+      } else if (!switched) {
+        await _controller.clearUser();
+      }
+    }());
   }
 
   void _syncCallbacks() {
