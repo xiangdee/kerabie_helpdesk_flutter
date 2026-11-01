@@ -41,6 +41,13 @@ void main() {
         {'id': 'u1', 'email': 'j@x.co', 'phone': '+1', 'customAttributes': {'plan': 'pro'}},
       );
     });
+
+    test('carries the picture link when one is given, and keeps it through copyWith', () {
+      const user = KerabieUser(name: 'Jane', avatarUrl: 'https://cdn.example.com/jane.png');
+      expect(user.toJson(), {'name': 'Jane', 'avatarUrl': 'https://cdn.example.com/jane.png'});
+      expect(user.copyWith(email: 'j@x.co').avatarUrl, 'https://cdn.example.com/jane.png');
+      expect(user.copyWith(avatarUrl: 'https://cdn.example.com/new.png').avatarUrl, 'https://cdn.example.com/new.png');
+    });
   });
 
   group('KerabieSettings.fromServer', () {

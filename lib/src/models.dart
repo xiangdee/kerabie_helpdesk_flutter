@@ -9,7 +9,7 @@ enum KerabieMessageStatus { pending, sent, delivered, read, failed }
 /// The person using your app. Pass it in [KerabieConfig.user] so agents see who they are talking to.
 @immutable
 class KerabieUser {
-  const KerabieUser({this.id, this.name, this.email, this.phone, this.role, this.customAttributes = const {}});
+  const KerabieUser({this.id, this.name, this.email, this.phone, this.role, this.avatarUrl, this.customAttributes = const {}});
 
   /// Your own id for this user.
   final String? id;
@@ -20,6 +20,10 @@ class KerabieUser {
   /// For example `customer`, `driver` or `admin`.
   final String? role;
 
+  /// An optional https link to the user's picture. Kerabie fetches it once, keeps its own resized copy and shows that to
+  /// your team (never your link). Without it, agents see initials.
+  final String? avatarUrl;
+
   /// Extra details shown to agents, such as a plan or an account id.
   final Map<String, String> customAttributes;
 
@@ -29,16 +33,18 @@ class KerabieUser {
         if (email != null) 'email': email,
         if (phone != null) 'phone': phone,
         if (role != null) 'role': role,
+        if (avatarUrl != null) 'avatarUrl': avatarUrl,
         if (customAttributes.isNotEmpty) 'customAttributes': customAttributes,
       };
 
-  KerabieUser copyWith({String? id, String? name, String? email, String? phone, String? role, Map<String, String>? customAttributes}) =>
+  KerabieUser copyWith({String? id, String? name, String? email, String? phone, String? role, String? avatarUrl, Map<String, String>? customAttributes}) =>
       KerabieUser(
         id: id ?? this.id,
         name: name ?? this.name,
         email: email ?? this.email,
         phone: phone ?? this.phone,
         role: role ?? this.role,
+        avatarUrl: avatarUrl ?? this.avatarUrl,
         customAttributes: customAttributes ?? this.customAttributes,
       );
 }

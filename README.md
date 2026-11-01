@@ -80,7 +80,7 @@ ElevatedButton(onPressed: () => KerabieChat.show(context), child: const Text('Ch
 | `widgetKey` | Yes | Your widget key |
 | `appName`, `appVersion` | Yes | Your app's name and version, sent when the chat connects |
 | `appBuild` | No | Build number, sent with them |
-| `user` | No | A `KerabieUser`: `id`, `name`, `email`, `phone`, `role`, `customAttributes` |
+| `user` | No | A `KerabieUser`: `id`, `name`, `email`, `phone`, `role`, `avatarUrl`, `customAttributes` |
 | `theme` | No | A `KerabieTheme`: `primaryColor`, `secondaryColor`, `gradient`, `cornerRadius`, `mode` (`light`, `dark` or `auto`), `backgroundColor`, `textColor`, `agentBubbleColor`, `userBubbleColor`, `bubbleColor`, `bubbleIcon`, `bubbleSize`, `bubbleIconSize`, `fontFamily`, `chatbotAvatarUrl`. Overrides the dashboard |
 | `chatSettings` | No | A `KerabieChatSettings` that overrides the dashboard: `name`, `welcomeMessage`, `offlineMessage`, `showBranding`, `typingIndicator`, `enableFileAttachments`, `chatbotEnabled`, `layout`, `showMenu`, `launcherType`, `searchbarPlaceholder`, `customerEnrichmentEnabled`, `customerEnrichmentForm` |
 | `openMode` | No | `modal` (a full-screen page, the default), `sheet` (a bottom sheet) or `push` (your own navigator opens it, see below) |
