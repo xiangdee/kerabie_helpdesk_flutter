@@ -28,6 +28,10 @@ class FakeFilePicker implements KerabieFilePicker {
 class FakeRealtime implements KerabieRealtime {
   final _events = StreamController<KerabieEvent>.broadcast(sync: true);
   final sent = <({int? conversationId, String body, String? type, String? key, String? fileName})>[];
+  /// The agent details that went with each message (null when the message carried none).
+  final agents = <Map<String, dynamic>?>[];
+  /// The app's answers to the agent: request id, result, error.
+  final answers = <({String requestId, String? result, String? error})>[];
   /// The guided-flow buttons tapped, in order.
   final choices = <KerabieChoice>[];
   final pages = <({String path, String? previous})>[];
@@ -57,7 +61,11 @@ class FakeRealtime implements KerabieRealtime {
   }
 
   @override
-  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName, KerabieChoice? choice}) {
+  void answerAgent(String requestId, {String? result, String? error}) => answers.add((requestId: requestId, result: result, error: error));
+
+  @override
+  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName, KerabieChoice? choice, Map<String, dynamic>? agent}) {
+    agents.add(agent);
     sent.add((conversationId: conversationId, body: body, type: attachmentType, key: attachmentKey, fileName: attachmentName));
     if (choice != null) choices.add(choice);
   }

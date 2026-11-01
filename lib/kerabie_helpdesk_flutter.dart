@@ -3,6 +3,7 @@
 /// Wrap your app in [KerabieProvider], add a [KerabieLauncher], and customers can message you from any screen.
 library;
 
+export 'src/agent.dart' show KerabieAgentAction, KerabieAgentOptions, KerabieScreenHandler;
 export 'src/api_client.dart' show KerabieException;
 export 'src/attachments.dart' show DeviceFilePicker, KerabieAttachmentStaging, KerabieFilePicker, KerabieUploadedAttachment;
 export 'src/campaigns.dart' show KerabieCampaign, KerabieCampaigns;
@@ -22,6 +23,7 @@ export 'src/config.dart'
         KerabieThemeMode;
 export 'src/controller.dart' show KerabieController, KerabiePushProvider, kerabieScreenPath;
 export 'src/deep_link.dart' show KerabieDeepLink;
+export 'src/ui/agent_screens.dart' show builtInAgentScreens;
 export 'src/guided.dart' show KerabieChoice, KerabieGuidedChoice, KerabieGuidedGreeting, kerabieActiveChoices;
 export 'src/knowledge_base.dart' show KerabieArticle, KerabieArticleFeedback, KerabieKnowledgeBase;
 export 'src/models.dart'

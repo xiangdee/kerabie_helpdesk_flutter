@@ -8,7 +8,7 @@ import 'models.dart';
 
 /// Something the server pushed. Names are the SDK's own: `connect`, `disconnect`, `ready`, `message`,
 /// `typing`, `read`, `agents`, `status`, `linkpreview`, `start`, `chunk`, and `call_ringing`, `call_queued`, `call_accepted`
-/// and `call_ended`.
+/// and `call_ended`, and `agent_request` (the AI agent asks the app to show a screen or run an action).
 class KerabieEvent {
   const KerabieEvent(this.name, [this.data = const {}]);
 
@@ -34,7 +34,12 @@ abstract class KerabieRealtime {
   /// A null [conversationId] starts a new conversation; the server creates it and echoes the message back.
   /// An attachment goes as its [attachmentType] (`image` or `file`) and the key the upload returned.
   /// A [choice] marks a tap on a guided flow's button; [body] is then the button's label.
-  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName, KerabieChoice? choice});
+  ///
+  /// [agent] is what the AI agent needs: the signed-in customer's token and the screens and actions the app offers.
+  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName, KerabieChoice? choice, Map<String, dynamic>? agent});
+
+  /// The app's answer to the AI agent's request for a screen or action: [result], or [error] when it could not.
+  void answerAgent(String requestId, {String? result, String? error});
   void sendTyping(int conversationId, bool typing);
 
   /// The visitor moved to another screen. [path] looks like a URL path, for example `/checkout`.
@@ -121,19 +126,27 @@ class SocketIoRealtime implements KerabieRealtime {
     forward('call:queued', 'call_queued');
     forward('call:accepted', 'call_accepted');
     forward('call:ended', 'call_ended');
+    forward('agent:request', 'agent_request');
 
     socket.connect();
   }
 
   @override
-  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName, KerabieChoice? choice}) {
+  void sendMessage({int? conversationId, required String body, String? attachmentType, String? attachmentKey, String? attachmentName, KerabieChoice? choice, Map<String, dynamic>? agent}) {
     _socket?.emit('visitor:message', {
       'conversationId': conversationId,
       'body': body,
       if (choice != null) 'choice': {'flowId': choice.flowId, 'choiceId': choice.choiceId},
       if (attachmentType != null) 'type': attachmentType,
       if (attachmentType != null) 'metadata': {'key': attachmentKey, 'fileName': attachmentName},
+      // An empty map (not nothing) tells the server nobody is signed in any more.
+      if (agent != null) 'agent': agent,
     });
+  }
+
+  @override
+  void answerAgent(String requestId, {String? result, String? error}) {
+    _socket?.emit('agent:result', {'requestId': requestId, if (error != null) 'error': error else 'result': result});
   }
 
   @override

@@ -1,5 +1,6 @@
 ## 0.5.0
 
+- The AI agent in the chat: `KerabieProvider(agent: KerabieAgentOptions(...))`. Every message carries the signed-in customer's token (`getUserToken`), and the AI can ask your app to show a screen (a list, a confirmation and an address box are built in; add your own in `screens`) or run an action (`actions`, for example adding to your own cart). Needs the same `navigatorKey` as your `MaterialApp`. Without `agent` the chat is unchanged. `KerabieAgentOptions`, `KerabieAgentAction` and `KerabieScreenHandler` now live here, so the chat agent needs no call code.
 - `KerabieController.startCall` takes `userToken` (the signed-in customer's token) and `uiTools` (the screens the app can show) for the AI agent in `kerabie_helpdesk_flutter_calls` 0.3.0. Kerabie keeps the token encrypted for the length of the call and sends it to your tools as `X-Kerabie-User-Token`; it is never shown to the AI.
 
 ## 0.4.0

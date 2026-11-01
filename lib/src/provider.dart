@@ -1,3 +1,5 @@
+import 'agent.dart';
+import 'ui/agent_screens.dart';
 import 'package:flutter/widgets.dart';
 
 import 'campaigns.dart';
@@ -24,6 +26,7 @@ class KerabieProvider extends StatefulWidget {
     this.onCloseChat,
     this.onOpenKnowledgeBase,
     this.callActions,
+    this.agent,
   });
 
   final KerabieConfig config;
@@ -48,6 +51,13 @@ class KerabieProvider extends StatefulWidget {
   /// Shown in the chat header, next to Settings. Pass `KerabieCallButton.icon()` from `kerabie_helpdesk_flutter_calls`
   /// to put call buttons in the chat. It is a widget you pass in, so this package never carries the call code.
   final Widget? callActions;
+
+  /// The AI agent in the chat: who is signed in ([KerabieAgentOptions.getUserToken]) and what your app can do for it.
+  /// A list, a confirmation and an address box are built in; add `pick_saved_address`, `pick_schedule` and `open_screen`
+  /// as [KerabieAgentOptions.screens], and things your app does itself (add to its own cart) as
+  /// [KerabieAgentOptions.actions]. Screens need the [navigatorKey] (the same one as your MaterialApp). Without this the
+  /// chat is unchanged.
+  final KerabieAgentOptions? agent;
 
   /// The controller, rebuilding the caller when the chat changes. Pass `listen: false` from callbacks.
   static KerabieController of(BuildContext context, {bool listen = true}) {
@@ -96,7 +106,18 @@ class _KerabieProviderState extends State<KerabieProvider> {
       ..onCloseChat = widget.onCloseChat
       ..onOpenKnowledgeBase = widget.onOpenKnowledgeBase
       ..callActions = widget.callActions;
+    final agent = widget.agent;
+    _controller.agent = agent == null
+        ? null
+        : KerabieAgentOptions(
+            getUserToken: agent.getUserToken,
+            // Dialogs are shown from the navigator's overlay, so they appear over whatever screen the customer is on.
+            screens: {...builtInAgentScreens(_dialogContext), ...agent.screens},
+            actions: agent.actions,
+          );
   }
+
+  BuildContext _dialogContext() => widget.navigatorKey?.currentState?.overlay?.context ?? context;
 
   /// The navigator does not exist until the app below has built, so wait for it: the banner needs its overlay, and
   /// `defaultOpen` needs it to open the chat.

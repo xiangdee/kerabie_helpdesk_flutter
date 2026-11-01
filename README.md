@@ -235,6 +235,35 @@ if (kerabie.handleDeepLink(Uri.parse('myapp://conversation/123'))) return;
 
 `KerabieDeepLink.conversationUri(123, 'myapp')` builds a link to put in a notification.
 
+## AI agent in the chat
+
+The AI can use your tools as the signed-in customer, show screens instead of listing results, and run things your app does itself. Read [AI agent for your app](https://kerabie.com/docs/ai/app-agent) first. It needs no call code or microphone.
+
+```dart
+KerabieProvider(
+  config: ...,
+  navigatorKey: navigatorKey, // the same key as MaterialApp
+  agent: KerabieAgentOptions(
+    getUserToken: () async => auth.currentToken, // null when nobody is signed in
+    screens: {
+      // A list, a confirmation and an address box are built in. Add the ones that need your data or design.
+      'pick_saved_address': (payload) async => pickAddress(payload['purpose']), // the address id, or 'none' to type a new one
+      'pick_schedule': (payload) async => pickDateTime(),                       // ISO 8601 date and time
+    },
+    actions: {
+      'add_to_cart': KerabieAgentAction(
+        description: 'Adds an item to the cart in the app. Use it when the customer says to add something.',
+        parameters: {'type': 'object', 'properties': {'itemId': {'type': 'string'}}, 'required': ['itemId']},
+        run: (args) async { cart.add(args['itemId']); return 'Added to the cart'; },
+      ),
+    },
+  ),
+  child: ...,
+)
+```
+
+Each screen handler returns the customer's answer, and throws if they close it. Each action returns a short result the AI says back. The token, screens and actions go along with every message. Addresses are never taken by typing into the chat: the AI uses the saved-address picker or the address box.
+
 ## Voice and video calls
 
 Pass `callActions: const KerabieCallButton.icon()` to `KerabieProvider` to put call buttons in the chat header. Calls are an optional package, so apps that only want chat do not carry the call code: [`kerabie_helpdesk_flutter_calls`](https://pub.dev/packages/kerabie_helpdesk_flutter_calls).

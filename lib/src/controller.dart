@@ -1,3 +1,4 @@
+import 'agent.dart';
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -597,6 +598,46 @@ class KerabieController extends ChangeNotifier {
     }
   }
 
+  // ─── The AI agent ─────────────────────────────────────────────────────────────
+
+  /// The app's AI agent: who is signed in, and the screens and actions the app offers. Set by [KerabieProvider].
+  /// Without it, messages carry nothing extra and the chat is unchanged.
+  KerabieAgentOptions? agent;
+
+  /// What the agent needs with a message. Reading the token can fail; that means nobody is signed in, never a lost message.
+  Future<Map<String, dynamic>?> _agentPayload() async {
+    final a = agent;
+    if (a == null) return null;
+    final token = await a.readUserToken();
+    return {
+      if (token != null) 'userToken': token,
+      'uiTools': a.screens.keys.toList(),
+      if (a.actions.isNotEmpty) 'appActions': a.describeActions(),
+    };
+  }
+
+  /// The agent asks for a screen or an action and waits. Whatever goes wrong is answered as "failed", so it never hangs.
+  Future<void> _onAgentRequest(Map<String, dynamic> data) async {
+    final id = data['requestId'];
+    if (id is! String) return;
+    final a = agent;
+    final name = data['name'];
+    final args = data['args'] is Map ? Map<String, dynamic>.from(data['args'] as Map) : <String, dynamic>{};
+    try {
+      final String answer;
+      if (data['kind'] == 'ui' && a != null && a.screens[name] != null) {
+        answer = await a.screens[name]!(args);
+      } else if (data['kind'] == 'action' && a != null && a.actions[name] != null) {
+        answer = await a.actions[name]!.run(args);
+      } else {
+        throw StateError('not available');
+      }
+      _realtime.answerAgent(id, result: answer);
+    } catch (_) {
+      _realtime.answerAgent(id, error: 'failed');
+    }
+  }
+
   // ─── Sending ──────────────────────────────────────────────────────────────────
 
   /// Sends [text]. A photo or file staged with [pickPhoto] or [pickDocument] goes with it as the caption's attachment.
@@ -649,6 +690,7 @@ class KerabieController extends ChangeNotifier {
     if (conversationId == null) _draftConversation = _DraftConversation(tempId);
     _failTimers[tempId] = Timer(sendTimeout, () => _markFailed(tempId));
     _notify();
+    final agentPayload = await _agentPayload();
     _realtime.sendMessage(
       conversationId: conversationId,
       body: body,
@@ -656,6 +698,7 @@ class KerabieController extends ChangeNotifier {
       attachmentKey: attached?.key,
       attachmentName: attached?.name,
       choice: choice,
+      agent: agentPayload,
     );
   }
 
@@ -729,6 +772,9 @@ class KerabieController extends ChangeNotifier {
         _onTyping(event.data);
       case 'call_ringing' || 'call_queued' || 'call_accepted' || 'call_ended':
         _callEvents.add(KerabieCallEvent(event.name.substring('call_'.length), event.data));
+        return; // no chat state changed
+      case 'agent_request':
+        unawaited(_onAgentRequest(event.data));
         return; // no chat state changed
       default:
         return;
