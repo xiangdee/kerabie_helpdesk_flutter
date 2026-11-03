@@ -12,6 +12,7 @@ import 'deep_link.dart';
 import 'guided.dart';
 import 'knowledge_base.dart';
 import 'models.dart';
+import 'person.dart';
 import 'realtime.dart';
 import 'storage.dart';
 
@@ -74,6 +75,7 @@ class KerabieController extends ChangeNotifier {
   String? _sessionId;
   int _orgId = 0;
   bool _started = false;
+  ({String token, KerabiePushProvider provider})? _lastPushToken;
   bool _disposed = false;
   bool _hasReadyBefore = false;
 
@@ -177,7 +179,29 @@ class KerabieController extends ChangeNotifier {
   Future<void> start() async {
     if (_started || _disposed) return;
     _started = true;
-    final sessionId = await _storage.sessionId();
+    var sessionId = await _storage.sessionId();
+    if (_disposed) return;
+
+    // A session belongs to one person. One kept for a signed-in person is not used by anyone else, nor by nobody after
+    // them (the app was closed between a sign-out and the next sign-in): it is dropped, with its notifications.
+    final person = kerabiePersonOf(_user);
+    if (kerabieSessionIsOthers(await _storage.readForever<String>('session_person'), person)) {
+      await _leaveSession(sessionId);
+      await _storage.clear();
+      sessionId = await _storage.sessionId();
+    }
+    // The server decides whose the session is: it names the session this person must use, a new one when the one sent
+    // belongs to someone else. This comes before anything is loaded, so another person's chats are never fetched.
+    final user = _user;
+    if (user != null) {
+      final given = await _identifyOn(sessionId, user);
+      if (given != null && given != sessionId) {
+        await _leaveSession(sessionId);
+        await _storage.saveSessionId(given);
+        sessionId = given;
+      }
+    }
+    await _storage.writeForever('session_person', person);
     if (_disposed) return;
     _sessionId = sessionId;
     _api = _apiFactory(sessionId);
@@ -191,9 +215,8 @@ class KerabieController extends ChangeNotifier {
     if (chat.layout == KerabieLayout.single && chat.chatHistoryEnabled != false) await _loadHistory(replace: true, all: true);
     if (_disposed) return;
 
-    final user = _user;
-    if (user != null) unawaited(identify(user));
     _connect();
+    _registerLastPushToken();
   }
 
   void _connect() {
@@ -341,12 +364,39 @@ class KerabieController extends ChangeNotifier {
 
   // ─── Identity ─────────────────────────────────────────────────────────────────
 
-  /// Tells Kerabie who this visitor is. Called for you when [KerabieConfig.user] is set.
+  /// Tells Kerabie who this visitor is. Called for you when [KerabieConfig.user] is set. When the session in use belonged
+  /// to someone else, the server names a new one and the chat starts over on it.
   Future<void> identify(KerabieUser user) async {
+    final current = _sessionId;
+    if (current == null) return;
+    final given = await _identifyOn(current, user);
+    if (given != null && given != current && !_disposed) await _startOver(sessionId: given);
+  }
+
+  /// Sends [user] on [sessionId] and returns the session the server says the person must use. Identification is best
+  /// effort; chat works without it, so a failure answers null.
+  Future<String?> _identifyOn(String sessionId, KerabieUser user) async {
+    final api = _apiFactory(sessionId);
     try {
-      await _api?.post('/public/widget/identify', {'user': user.toJson()});
+      final res = await api.post('/public/widget/identify', {'user': user.toJson()});
+      final given = res['sessionId'];
+      return given is String && given.isNotEmpty ? given : null;
     } on KerabieException {
-      // Identification is best effort; chat works without it.
+      return null;
+    } finally {
+      api.close();
+    }
+  }
+
+  /// Stops [sessionId] pushing notifications to this phone.
+  Future<void> _leaveSession(String sessionId) async {
+    final api = _apiFactory(sessionId);
+    try {
+      await api.delete('/public/widget/push-token');
+    } on KerabieException {
+      // Best effort.
+    } finally {
+      api.close();
     }
   }
 
@@ -357,9 +407,17 @@ class KerabieController extends ChangeNotifier {
     await identify(user);
   }
 
-  /// Call after logout. The conversation on screen is cleared and the next visitor starts a fresh anonymous session.
-  Future<void> clearUser() async {
+  /// Call when the person signs out of the app. Their chats stay with them: the conversation on screen is cleared, the
+  /// session is dropped and stops pushing notifications to this phone, and the next person, or an anonymous visitor,
+  /// starts a new one.
+  Future<void> logout() async {
     _user = null;
+    await _startOver();
+  }
+
+  /// Clears what is on screen and connects again on [sessionId], or on a new session when none is given. The earlier
+  /// session stops pushing notifications to this phone.
+  Future<void> _startOver({String? sessionId}) async {
     _messages.clear();
     _conversationId = null;
     _conversations = const [];
@@ -372,14 +430,19 @@ class KerabieController extends ChangeNotifier {
     _notify();
     if (!_started || _disposed) return;
     _realtime.disconnect();
+    final old = _sessionId;
+    if (old != null) await _leaveSession(old);
     await _storage.clear();
-    final sessionId = await _storage.sessionId();
+    if (sessionId != null) await _storage.saveSessionId(sessionId);
+    final next = await _storage.sessionId();
+    await _storage.writeForever('session_person', kerabiePersonOf(_user));
     if (_disposed) return;
-    _sessionId = sessionId;
+    _sessionId = next;
     _api?.close();
-    _api = _apiFactory(sessionId);
+    _api = _apiFactory(next);
     _hasReadyBefore = false;
     _connect();
+    _registerLastPushToken();
   }
 
   /// Adds one detail agents see next to the customer, for example `plan: pro`.
@@ -402,12 +465,20 @@ class KerabieController extends ChangeNotifier {
   /// Registers this device's push token so Kerabie can notify the visitor. Pass the token from the one push
   /// service your app uses, with its [provider]. Returns whether Kerabie accepted it.
   Future<bool> registerPushToken(String token, {required KerabiePushProvider provider}) async {
+    _lastPushToken = (token: token, provider: provider);
     try {
       final res = await _api?.post('/public/widget/push-token', {'token': token, 'provider': provider.name});
       return res?['success'] == true;
     } on KerabieException {
       return false;
     }
+  }
+
+  /// Gives the token the app registered earlier in this run to the session now in use (after a sign-out or a switch of
+  /// person).
+  void _registerLastPushToken() {
+    final last = _lastPushToken;
+    if (last != null) unawaited(registerPushToken(last.token, provider: last.provider));
   }
 
   /// Call with a notification's data when the user taps it. Returns true when it pointed at a Kerabie conversation
@@ -614,6 +685,21 @@ class KerabieController extends ChangeNotifier {
       staging.showError(e is KerabieException ? e.message : failure);
     }
   }
+
+  // ─── Live voice ───────────────────────────────────────────────────────────────
+
+  /// What a live voice session sends back: `voice_ready`, `voice_state`, `voice_transcript`, `voice_audio`
+  /// (`data['pcm']` is the speech as bytes), `voice_interrupted`, `voice_ended` and `voice_error`. Used by
+  /// `kerabie_helpdesk_flutter_voice`, which does the microphone, the speaker and the orb.
+  Stream<KerabieEvent> get voiceEvents => _realtime.events.where((e) => e.name.startsWith('voice_'));
+
+  /// Starts a live voice session with the AI, as the signed-in customer when the app has an agent set up.
+  Future<void> voiceStart() async => _realtime.voiceStart(agent: await _agentPayload());
+
+  /// The customer's speech: 16-bit little-endian PCM at 16 kHz, mono.
+  void voiceAudio(Uint8List pcm) => _realtime.voiceAudio(pcm);
+
+  void voiceStop() => _realtime.voiceStop();
 
   // ─── The AI agent ─────────────────────────────────────────────────────────────
 

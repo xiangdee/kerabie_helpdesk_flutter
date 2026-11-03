@@ -127,22 +127,31 @@ final kerabie = KerabieProvider.of(context); // rebuilds when the chat changes
 | `sendMessage(text)`, `retry(message)` | Send, and resend a failed message |
 | `showChat()`, `dismissChat()`, `toggle()` | Open and close the chat |
 | `currentUser`, `visitorName` | Who the customer is, as far as you have said |
-| `setUser(user)`, `clearUser()`, `updateAttribute(key, value)` | See [Who the customer is](#who-the-customer-is) |
+| `setUser(user)`, `logout()`, `updateAttribute(key, value)` | See [Who the customer is](#who-the-customer-is) |
 | `setAppVersion(version)` | Tell Kerabie the app's version changed; sent with the next connection |
 | `openWithContext(context)` | See [Opening the chat with context](#opening-the-chat-with-context) |
 | `refreshConversations()`, `conversations` | The customer's conversations |
 
 ## Who the customer is
 
-Call `setUser` after login so agents see who they are talking to, `updateAttribute` to add a detail, and `clearUser` after logout. `clearUser` empties the chat on screen and the next visitor starts a fresh anonymous session.
+Call `setUser` after login so agents see who they are talking to, `updateAttribute` to add a detail, and `logout` when the person signs out. Always send the user's `id`: it is how Kerabie knows two sign-ins are the same person or two different people.
 
 ```dart
 final kerabie = KerabieProvider.of(context, listen: false);
 
 await kerabie.setUser(const KerabieUser(id: 'u_123', name: 'Ada Obi', email: 'ada@example.com'));
 await kerabie.updateAttribute('plan', 'pro');
-await kerabie.clearUser();
+await kerabie.logout();
 ```
+
+### One person per session
+
+A chat session belongs to one person. Two things keep one person's chats from showing to the next:
+
+- **Call `logout()` when someone signs out.** The chat on screen is cleared, the session is dropped, its push notifications stop going to this phone, and the next person (or an anonymous visitor) starts a new session. If you pass the signed-in user in `KerabieConfig.user`, set it to `null` at the same time.
+- **Always send `id`.** The server remembers which `id` a session belongs to. If a different `id` arrives on it (for example the app was closed after a sign-out), the server gives that person a new session and the package switches to it before anything is loaded. A session that belongs to someone is never handed to someone else, and an anonymous visitor who signs in keeps their chat.
+
+If your app registered a push token, it is given to the new session automatically after a sign-out or a switch.
 
 ## Opening the chat with context
 

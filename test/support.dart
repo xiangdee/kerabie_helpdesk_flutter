@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -39,6 +40,10 @@ class FakeRealtime implements KerabieRealtime {
   final typing = <({int conversationId, bool typing})>[];
   Map<String, Object?>? connectArgs;
   bool connected = false;
+  /// Live voice: the details sent with each start, the speech sent, and how many times it was stopped.
+  final voiceStarts = <Map<String, dynamic>?>[];
+  final voiceChunks = <Uint8List>[];
+  var voiceStops = 0;
 
   @override
   Stream<KerabieEvent> get events => _events.stream;
@@ -59,6 +64,15 @@ class FakeRealtime implements KerabieRealtime {
     connected = true;
     connectArgs = {'baseUrl': baseUrl, 'orgId': orgId, 'sessionId': sessionId, 'appName': appName, 'appVersion': appVersion, 'user': user?.name};
   }
+
+  @override
+  void voiceStart({Map<String, dynamic>? agent}) => voiceStarts.add(agent);
+
+  @override
+  void voiceAudio(Uint8List pcm) => voiceChunks.add(pcm);
+
+  @override
+  void voiceStop() => voiceStops++;
 
   @override
   void answerAgent(String requestId, {String? result, String? error}) => answers.add((requestId: requestId, result: result, error: error));

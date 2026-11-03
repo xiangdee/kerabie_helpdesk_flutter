@@ -291,6 +291,7 @@ class KerabieSettings {
     this.chatbotAvatarUrl,
     this.ticketsEnabled = false,
     this.callsEnabled = false,
+    this.aiVoiceEnabled = false,
     this.videoCallsEnabled = false,
   });
 
@@ -319,6 +320,9 @@ class KerabieSettings {
 
   /// Calls are on in the dashboard and the plan still has minutes. The `kerabie_helpdesk_flutter_calls` package uses it.
   final bool callsEnabled;
+
+  /// The AI voice agent is on in the dashboard and the plan still has AI minutes. The `kerabie_helpdesk_flutter_voice` package uses it.
+  final bool aiVoiceEnabled;
   final bool videoCallsEnabled;
 
   factory KerabieSettings.fromServer(Map<String, dynamic> s) {
@@ -362,6 +366,7 @@ class KerabieSettings {
       ),
       ticketsEnabled: s['ticketsEnabled'] == true,
       callsEnabled: s['callsEnabled'] == true,
+      aiVoiceEnabled: s['aiVoiceEnabled'] == true,
       videoCallsEnabled: s['videoCallsEnabled'] == true,
       launcherIconUrl: url(s['launcherIconUrl']),
       launcherIconSize: s['launcherIconSize'] is num ? (s['launcherIconSize'] as num).toDouble() : null,

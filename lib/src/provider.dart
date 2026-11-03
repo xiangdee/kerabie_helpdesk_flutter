@@ -109,15 +109,10 @@ class _KerabieProviderState extends State<KerabieProvider> {
   /// nobody does), the session, the conversations and the connection are started again, so nothing carries over.
   void _syncUser(KerabieUser? before, KerabieUser? after) {
     if (jsonEncode(before?.toJson()) == jsonEncode(after?.toJson())) return;
-    final before0 = kerabiePersonOf(before);
-    final switched = before0.isNotEmpty && before0 != kerabiePersonOf(after);
+    final switched = kerabieSessionIsOthers(kerabiePersonOf(before), kerabiePersonOf(after));
     unawaited(() async {
-      if (switched) await _controller.clearUser();
-      if (after != null) {
-        await _controller.setUser(after);
-      } else if (!switched) {
-        await _controller.clearUser();
-      }
+      if (switched || after == null) await _controller.logout();
+      if (after != null) await _controller.setUser(after);
     }());
   }
 

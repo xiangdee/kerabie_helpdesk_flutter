@@ -50,6 +50,7 @@ export 'src/ui/launcher.dart' show KerabieLauncher, KerabieLauncherButton, Kerab
 export 'src/ui/message_bubble.dart' show KerabieMessageBubble;
 export 'src/ui/pre_chat_form.dart' show KerabiePreChatForm;
 export 'src/ui/navigator_observer.dart' show KerabieNavigatorObserver, kerabieChatRouteName;
+export 'src/realtime.dart' show KerabieEvent;
 export 'src/ui/palette.dart' show KerabiePalette;
 export 'src/ui/skeleton.dart' show KerabieSkeleton, KerabieSkeletonRows;
 export 'src/ui/store_screen.dart' show KerabieStoreScreen;

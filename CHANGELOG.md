@@ -1,3 +1,8 @@
+## Unreleased
+
+- `logout()` replaces `clearUser()`. Call it when the person signs out: the session is dropped, its notifications stop coming to this phone, and the next person (or an anonymous visitor) starts a new one. Always send the user's `id`: the server remembers which `id` a session belongs to and gives a different person a new session before anything is loaded.
+- Live voice transport for `kerabie_helpdesk_flutter_voice`: `KerabieController.voiceEvents`, `voiceStart()`, `voiceAudio()` and `voiceStop()`. It has no audio code or microphone permission of its own.
+
 ## 0.6.1
 
 - A session belongs to one person. When someone else signs in after a signed-in person, or nobody does, the session, conversations and connection start again, so the new person never sees the earlier one conversations and the earlier contact is not renamed. Anonymous to signed in keeps the session.

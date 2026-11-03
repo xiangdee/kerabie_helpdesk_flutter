@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
@@ -8,7 +10,9 @@ import 'models.dart';
 
 /// Something the server pushed. Names are the SDK's own: `connect`, `disconnect`, `ready`, `message`,
 /// `typing`, `read`, `agents`, `status`, `linkpreview`, `start`, `chunk`, and `call_ringing`, `call_queued`, `call_accepted`
-/// and `call_ended`, and `agent_request` (the AI agent asks the app to show a screen or run an action).
+/// and `call_ended`, and `agent_request` (the AI agent asks the app to show a screen or run an action), and the live voice
+/// session's `voice_ready`, `voice_state`, `voice_transcript`, `voice_audio` (`data['pcm']` is the speech as bytes),
+/// `voice_interrupted`, `voice_ended` and `voice_error`.
 class KerabieEvent {
   const KerabieEvent(this.name, [this.data = const {}]);
 
@@ -40,6 +44,13 @@ abstract class KerabieRealtime {
 
   /// The app's answer to the AI agent's request for a screen or action: [result], or [error] when it could not.
   void answerAgent(String requestId, {String? result, String? error});
+
+  /// Starts a live voice session with the AI. [agent] is what the AI agent needs, as with [sendMessage].
+  void voiceStart({Map<String, dynamic>? agent});
+
+  /// The customer's speech, in small pieces: 16-bit little-endian PCM at 16 kHz, mono.
+  void voiceAudio(Uint8List pcm);
+  void voiceStop();
   void sendTyping(int conversationId, bool typing);
 
   /// The visitor moved to another screen. [path] looks like a URL path, for example `/checkout`.
@@ -127,6 +138,16 @@ class SocketIoRealtime implements KerabieRealtime {
     forward('call:accepted', 'call_accepted');
     forward('call:ended', 'call_ended');
     forward('agent:request', 'agent_request');
+    forward('voice:ready', 'voice_ready');
+    forward('voice:state', 'voice_state');
+    forward('voice:transcript', 'voice_transcript');
+    forward('voice:interrupted', 'voice_interrupted');
+    forward('voice:ended', 'voice_ended');
+    forward('voice:error', 'voice_error');
+    socket.on('voice:audio', (data) {
+      final pcm = data is Uint8List ? data : (data is List ? Uint8List.fromList(data.cast<int>()) : null);
+      if (pcm != null) _controller.add(KerabieEvent('voice_audio', {'pcm': pcm}));
+    });
 
     socket.connect();
   }
@@ -148,6 +169,15 @@ class SocketIoRealtime implements KerabieRealtime {
   void answerAgent(String requestId, {String? result, String? error}) {
     _socket?.emit('agent:result', {'requestId': requestId, if (error != null) 'error': error else 'result': result});
   }
+
+  @override
+  void voiceStart({Map<String, dynamic>? agent}) => _socket?.emit('voice:start', {if (agent != null) 'agent': agent});
+
+  @override
+  void voiceAudio(Uint8List pcm) => _socket?.emit('voice:audio', pcm);
+
+  @override
+  void voiceStop() => _socket?.emit('voice:stop');
 
   @override
   void sendPage({required String path, String? title, String? previousPath, int? timeSpentMs}) {

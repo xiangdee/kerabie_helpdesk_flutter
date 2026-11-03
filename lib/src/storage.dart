@@ -37,6 +37,13 @@ class KerabieStorage {
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
+    await prefs.remove('kerabie:sdk:session_person');
+  }
+
+  /// Keeps a session id the server gave this person, in place of the one that belonged to someone else.
+  Future<void> saveSessionId(String sessionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, jsonEncode({'value': sessionId, 'ts': _now().millisecondsSinceEpoch}));
   }
 
   /// A remembered value, or null when there is none or it is older than seven days.

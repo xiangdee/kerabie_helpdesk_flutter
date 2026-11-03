@@ -127,7 +127,7 @@ void main() {
       c.dispose();
     });
 
-    test('clearUser empties the chat and starts a fresh anonymous session', () async {
+    test('logout empties the chat and starts a fresh anonymous session', () async {
       server.routes['GET /public/widget/messages'] = {
         'conversationId': 7,
         'messages': [serverMessage(1, 'Hello', role: 'customer')],
@@ -143,7 +143,7 @@ void main() {
       expect(c.sessionId, 'ks_1');
       expect(c.messages, hasLength(1));
 
-      await c.clearUser();
+      await c.logout();
 
       expect(c.currentUser, isNull);
       expect(c.messages, isEmpty);
