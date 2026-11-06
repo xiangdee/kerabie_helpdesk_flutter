@@ -1,7 +1,8 @@
-## Unreleased
+## 0.7.0
 
+- A person can ring the customer: the `incoming` call event, `answerCall(callId)`, and `incoming` and `agentName` on `KerabieCallJoin`.
 - `logout()` replaces `clearUser()`. Call it when the person signs out: the session is dropped, its notifications stop coming to this phone, and the next person (or an anonymous visitor) starts a new one. Always send the user's `id`: the server remembers which `id` a session belongs to and gives a different person a new session before anything is loaded.
-- Live voice transport for `kerabie_helpdesk_flutter_voice`: `KerabieController.voiceEvents`, `voiceStart()`, `voiceAudio()` and `voiceStop()`. It has no audio code or microphone permission of its own.
+- Live voice transport for the live voice in `kerabie_helpdesk_flutter_calls` 0.4.0: `KerabieController.voiceEvents`, `voiceStart()`, `voiceAudio()` and `voiceStop()`. It has no audio code or microphone permission of its own.
 
 ## 0.6.1
 

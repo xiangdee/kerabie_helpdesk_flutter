@@ -133,6 +133,7 @@ class SocketIoRealtime implements KerabieRealtime {
     forward('chat:message:linkpreview', 'linkpreview');
     forward('chat:message:start', 'start');
     forward('chat:message:chunk', 'chunk');
+    forward('call:incoming', 'call_incoming');
     forward('call:ringing', 'call_ringing');
     forward('call:queued', 'call_queued');
     forward('call:accepted', 'call_accepted');

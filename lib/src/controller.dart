@@ -510,7 +510,7 @@ class KerabieController extends ChangeNotifier {
 
   final _callEvents = StreamController<KerabieCallEvent>.broadcast();
 
-  /// Where the current call stands, pushed by the server: `ringing`, `queued`, `accepted` and `ended`.
+  /// Where the current call stands, pushed by the server: `incoming` (a person is calling), `ringing`, `queued`, `accepted` and `ended`.
   Stream<KerabieCallEvent> get callEvents => _callEvents.stream;
 
   /// Starts a call. A visitor who already has one is put back into it. Throws [KerabieException] when calls are off,
@@ -538,6 +538,13 @@ class KerabieController extends ChangeNotifier {
     final res = await api.get('/public/widget/calls/current');
     final call = res['call'];
     return call is Map ? KerabieCallJoin.fromServer(Map<String, dynamic>.from(call)) : null;
+  }
+
+  /// Picks up a call a person started (the `incoming` call event).
+  Future<KerabieCallJoin> answerCall(int callId) async {
+    final api = _api;
+    if (api == null) throw KerabieException('Chat is not ready yet.');
+    return KerabieCallJoin.fromServer(await api.post('/public/widget/calls/$callId/answer', {}));
   }
 
   /// Hangs up, or cancels a call nobody has answered yet.
@@ -873,7 +880,7 @@ class KerabieController extends ChangeNotifier {
         _onStreamChunk(event.data);
       case 'typing':
         _onTyping(event.data);
-      case 'call_ringing' || 'call_queued' || 'call_accepted' || 'call_ended':
+      case 'call_incoming' || 'call_ringing' || 'call_queued' || 'call_accepted' || 'call_ended':
         _callEvents.add(KerabieCallEvent(event.name.substring('call_'.length), event.data));
         return; // no chat state changed
       case 'agent_request':

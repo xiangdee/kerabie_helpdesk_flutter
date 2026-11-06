@@ -190,6 +190,8 @@ class KerabieCallJoin {
     required this.livekitToken,
     this.handler,
     this.queuePosition,
+    this.incoming = false,
+    this.agentName,
   });
 
   final int callId;
@@ -203,6 +205,12 @@ class KerabieCallJoin {
 
   /// Place in the queue (1 = next), only while the call is waiting.
   final int? queuePosition;
+
+  /// True while a person is ringing this customer: they answer or decline before joining the room.
+  final bool incoming;
+
+  /// Who is calling, when a person rang the customer.
+  final String? agentName;
   final String livekitUrl;
   final String livekitToken;
 
@@ -214,13 +222,15 @@ class KerabieCallJoin {
       video: json['video'] == true,
       handler: json['handler'] as String?,
       queuePosition: (json['queuePosition'] as num?)?.toInt(),
+      incoming: json['incoming'] == true,
+      agentName: json['agentName'] as String?,
       livekitUrl: '${livekit['url'] ?? ''}',
       livekitToken: '${livekit['token'] ?? ''}',
     );
   }
 }
 
-/// Where a call stands, pushed by the server: `ringing`, `queued`, `accepted` or `ended`.
+/// Where a call stands, pushed by the server: `incoming` (a person is calling), `ringing`, `queued`, `accepted` or `ended`.
 @immutable
 class KerabieCallEvent {
   const KerabieCallEvent(this.name, this.data);
